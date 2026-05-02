@@ -6,11 +6,11 @@ The new code is an upgraded version of the previous one.
 
 You moved from:
 
-- File-based local knowledge chatbot (entire file passed to model)
+- Single-question retrieval QA script
 
 To:
 
-- Retrieval-based local RAG chatbot (best chunk selected before prompting)
+- Continuous chat-based local RAG chatbot
 
 ---
 
@@ -18,23 +18,21 @@ To:
 
 | Feature | Previous Code | New Code |
 |--------|---------------|----------|
-| Context Source | Entire `notes.txt` file | Best matching chunk from `notes.txt` |
-| Retrieval System | None | Keyword overlap chunk search |
-| Prompt Size | Full file context | Only selected chunk |
-| Speed | Slower for large files | Faster |
-| Accuracy | More noise possible | More relevant context |
-| Scalability | Poor for large notes | Better |
-| Debug Visibility | Only final answer | Shows best chunk + answer |
-| Architecture | Zero RAG | Basic RAG |
+| Interaction Mode | One question then exits | Multi-turn chat loop |
+| User Experience | Re-run script every question | Continuous conversation |
+| Exit System | No built-in exit command | `quit` command added |
+| Retrieval | Best chunk once | Best chunk every message |
+| Output Cleaning | Printed full generated text | Clean answer extraction |
+| UI | Simple input/output | Chatbot style (`You:` / `Bot:`) |
+| Practical Use | QA tool | Interactive chatbot |
 
 ---
 
 # Detailed Changes
 
-## 1. Entire File Removed From Prompt
+## 1. Added Chat Loop
 
 ### Old Code
 
 ```python
-with open("notes.txt", "r", encoding="utf-8") as f:
-    context = f.read()
+question = input("Ask question: ")

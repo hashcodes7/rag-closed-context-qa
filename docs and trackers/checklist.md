@@ -25,9 +25,9 @@
 
 ## Step 4 — Chatbot Mode
 
-* [ ] Infinite question loop
-* [ ] Ask multiple questions
-* [ ] Exit with `quit`
+* [x] Infinite question loop
+* [x] Ask multiple questions
+* [x] Exit with `quit`
 
 ## Step 5 — Better Version
 

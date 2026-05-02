@@ -1,0 +1,25 @@
+Employee Profile Summaries:
+
+ID: EMP001
+Name: John Doe
+Role: Senior AI Engineer
+Department: Research & Development
+Joined: March 15, 2018
+Skills: Python, TensorFlow, PyTorch, Kubernetes
+Manager: Robert Chang
+
+ID: EMP002
+Name: Sarah Jenkins
+Role: Product Manager
+Department: Product
+Joined: July 22, 2020
+Skills: Agile, Scrum, Jira, Market Analysis
+Manager: Alice Vanguard
+
+ID: EMP003
+Name: Michael Rossi
+Role: DevOps Specialist
+Department: Infrastructure
+Joined: January 10, 2021
+Skills: AWS, Docker, Terraform, CI/CD
+Manager: Robert Chang

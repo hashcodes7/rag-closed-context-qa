@@ -1,0 +1,10 @@
+Company Overview:
+TechNova Innovations is a leading AI and cloud computing solutions provider founded in 2012. Our headquarters is located in Austin, Texas, with branch offices in London, Tokyo, and Bangalore.
+Mission: To empower businesses through intelligent cloud infrastructure and scalable AI models.
+Key Products:
+- CloudBridge: A seamless multi-cloud deployment platform.
+- NovaAI: An enterprise-grade natural language processing engine.
+- DataShield: A decentralized enterprise data security protocol.
+CEO: Alice Vanguard
+CTO: Robert Chang
+Revenue (2025): $450 Million

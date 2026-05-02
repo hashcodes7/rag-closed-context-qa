@@ -1,26 +1,24 @@
-PS C:\Users\Harsh\HiHarsh\Coding\Python\RAG Closed context QA>  & 'c:\Users\Harsh\HiHarsh\Coding\Python\RAG Closed context QA\venv\Scripts\python.exe' 'c:\Users\Harsh\.antigravity\extensions\ms-python.debugpy-2026.6.0-win32-x64\bundled\libs\debugpy\launcher' '58453' '--' 'c:\Users\Harsh\HiHarsh\Coding\Python\RAG Closed context QA\app.py' 
+PS C:\Users\Harsh\HiHarsh\Coding\Python\RAG Closed context QA>  c:; cd 'c:\Users\Harsh\HiHarsh\Coding\Python\RAG Closed context QA'; & 'c:\Users\Harsh\HiHarsh\Coding\Python\RAG Closed context QA\venv\Scripts\python.exe' 'c:\Users\Harsh\.antigravity\extensions\ms-python.debugpy-2026.6.0-win32-x64\bundled\libs\debugpy\launcher' '54668' '--' 'c:\Users\Harsh\HiHarsh\Coding\Python\RAG Closed context QA\app.py' 
 Loading tokenizer...
 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
 Loading model...
-Loading weights: 100%|█████████████████████████████████████████████████| 290/290 [00:00<00:00, 2688.97it/s]
-Ask question: How many paid leaves?
+Loading weights: 100%|█████████████████████████████████████████████████| 290/290 [00:00<00:00, 4568.91it/s]
 
-BEST CHUNK:
+RAG Chatbot Ready!
+Type 'quit' to exit.
 
-Employees get 20 paid leaves yearly.
+You: what is my name?
 
-RESULT:
+Bot: My name is Harsh.
 
+You: ow many paid leaves?
 
-Answer only using the context below.
-If answer not found, say Not found.
+Bot: The number of paid leaves is 20. Employees are entitled to 20 paid days off each year. This means that employees can take time off work for various reasons, such as personal emergencies
 
-Context:
-Employees get 20 paid leaves yearly.
+You: when office starts?
 
-Question:
-how many paid leaves?
+Bot: The office starts at 9 AM.
 
-Answer:
-The number of paid leaves is 20. Employees are entitled to 20 paid days off each year. This provision allows employees to take time off for various reasons such as personal emergencies, family matters, or illness. The policy ensures that employees
+You: quit
+Goodbye.
 PS C:\Users\Harsh\HiHarsh\Coding\Python\RAG Closed context QA> 
