@@ -1,36 +1,64 @@
-# README — Local LLM Question Answering Demo (Not True RAG)
+# Zero RAG Closed Context QA
 
-## Project Overview
+A lightweight local question-answering chatbot built using a pretrained language model and custom prompts.
 
-This project demonstrates how to run a **local language model** using Hugging Face Transformers and ask questions based on custom text.
+This project reads information from a local text file (`notes.txt`) and answers user questions **only from the provided context**.
 
-It uses the **Qwen2.5-0.5B-Instruct** model to read a paragraph and generate answers.
-
----
-
-# Important Clarification
-
-## This is **NOT** a True RAG System
-
-Many beginners think that giving text to a model inside a prompt means they built RAG.
-
-That is **not correct**.
-
-This project currently uses **Prompt Injection / Context Prompting**, not Retrieval-Augmented Generation (RAG).
+It does **not** use embeddings, vector databases, retrieval pipelines, or internet access.
 
 ---
 
-# What This Code Actually Does
+# What This Project Is
 
-The paragraph is manually inserted into the prompt like this:
+This project demonstrates a simple alternative to traditional RAG systems.
 
-```python
-prompt = f"""
-Paragraph:
-{paragraph}
+Instead of:
 
-Question:
-{question}
+- Storing vectors
+- Searching embeddings
+- Retrieving chunks
 
-Answer:
-"""
+It directly loads text from a file and injects it into the model prompt.
+
+This approach can be called:
+
+- Zero RAG
+- Closed Context QA
+- Prompt-based Local QA
+- Manual Context Injection
+
+---
+
+# Features
+
+- Uses local text file as knowledge source
+- Runs locally on your machine
+- Works offline after first model download
+- User can ask custom questions
+- Responds only from provided notes
+- Returns `Not found` when answer is missing
+- Lightweight and beginner-friendly
+
+---
+
+# Tech Stack
+
+- Python
+- PyTorch
+- Hugging Face Transformers
+- Qwen2.5-0.5B-Instruct
+
+---
+
+# Recommended Environment
+
+## Operating System
+
+- Windows 10 / 11
+- Linux
+- macOS
+
+## Python Version
+
+```text id="e0nyqf"
+Python 3.10+

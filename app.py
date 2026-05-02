@@ -12,18 +12,17 @@ model = AutoModelForCausalLM.from_pretrained(
     low_cpu_mem_usage=True
 )
 
-paragraph = """
-i am mark and i love my friends .There are myself and 4 other people going to the mall including me.
-3 went to the park.
-"""
+with open("notes.txt", "r", encoding="utf-8") as f:
+    context = f.read()
 
-question = "who is the person who write this paragraph"
+question = input("Ask question: ")
 
 prompt = f"""
-Read the paragraph carefully and answer only from it.
+Read the text below and answer only from it.
+If answer is not present, say Not found.
 
-Paragraph:
-{paragraph}
+Text:
+{context}
 
 Question:
 {question}
@@ -36,9 +35,8 @@ inputs = tokenizer(prompt, return_tensors="pt")
 with torch.no_grad():
     outputs = model.generate(
         **inputs,
-        max_new_tokens=30,
-        do_sample=False,
-        temperature=0.1
+        max_new_tokens=50,
+        do_sample=False
     )
 
 answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
