@@ -82,6 +82,8 @@ print(f"✅ Loaded {len(chunks)} chunks from {file_count} files")
 # -----------------------------
 # 🟢 RETRIEVAL (WITH LOGS)
 # -----------------------------
+def truncate(text, max_words=120):
+    return " ".join(text.split()[:max_words])
 
 def retrieve_top_k(question, k=2):
     print("\n🔍 Retrieving relevant chunks...")
@@ -150,7 +152,7 @@ while True:
     sources = set()
 
     for c in top_chunks:
-        context += f"\n[Source: {c['source']} | chunk {c['chunk_id']}]\n{c['text']}\n"
+        context += f"\n[Source: {c['source']}]\n{truncate(c['text'])}\n"
         sources.add(c["source"])
 
     print(f"📚 Context size: {len(context)} characters")
@@ -199,7 +201,7 @@ Answer:
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
-            max_new_tokens=120,
+            max_new_tokens=60,
             do_sample=False
         )
 
