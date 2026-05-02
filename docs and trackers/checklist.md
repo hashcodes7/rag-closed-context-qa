@@ -31,7 +31,7 @@
 
 ## Step 5 — Better Version
 
-* [ ] Multiple txt files
-* [ ] Save chat history
-* [ ] Better prompts
-* [ ] Source chunk display
+* [x] Multiple txt files
+* [x] Save chat history
+* [x] Better prompts
+* [x] Source chunk display

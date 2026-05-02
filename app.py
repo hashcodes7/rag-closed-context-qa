@@ -1,5 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
+import os
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
 
@@ -12,12 +13,25 @@ model = AutoModelForCausalLM.from_pretrained(
     low_cpu_mem_usage=True
 )
 
-# Read notes once
-with open("notes.txt", "r", encoding="utf-8") as f:
-    text = f.read()
+# Load all chunks from data folder
+chunks = []
 
-# Make chunks (1 line = 1 chunk)
-chunks = [c.strip() for c in text.split("\n") if c.strip()]
+folder = "knowledge_source"
+
+for filename in os.listdir(folder):
+    path = os.path.join(folder, filename)
+
+    if filename.endswith(".txt"):
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        for line in text.split("\n"):
+            line = line.strip()
+            if line:
+                chunks.append({
+                    "source": filename,
+                    "text": line
+                })
 
 print("\nRAG Chatbot Ready!")
 print("Type 'quit' to exit.\n")
@@ -29,11 +43,13 @@ while True:
         print("Goodbye.")
         break
 
-    # Retrieve best chunk
     best_chunk = ""
+    best_source = ""
     best_score = -1
 
-    for chunk in chunks:
+    for item in chunks:
+        chunk = item["text"]
+
         score = 0
         for word in question.lower().split():
             if word in chunk.lower():
@@ -42,6 +58,7 @@ while True:
         if score > best_score:
             best_score = score
             best_chunk = chunk
+            best_source = item["source"]
 
     prompt = f"""
 Answer only using the context below.
@@ -66,9 +83,9 @@ Answer:
 
     answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    # Show answer only after Answer:
     if "Answer:" in answer:
         answer = answer.split("Answer:")[-1].strip()
 
-    print("\nBot:", answer)
+    print(f"\nSource: {best_source}")
+    print("Bot:", answer)
     print()

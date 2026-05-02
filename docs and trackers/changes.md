@@ -6,11 +6,11 @@ The new code is an upgraded version of the previous one.
 
 You moved from:
 
-- Single-question retrieval QA script
+- Single-file local RAG chatbot using `notes.txt`
 
 To:
 
-- Continuous chat-based local RAG chatbot
+- Multi-file knowledge base RAG chatbot using a dedicated folder
 
 ---
 
@@ -18,21 +18,23 @@ To:
 
 | Feature | Previous Code | New Code |
 |--------|---------------|----------|
-| Interaction Mode | One question then exits | Multi-turn chat loop |
-| User Experience | Re-run script every question | Continuous conversation |
-| Exit System | No built-in exit command | `quit` command added |
-| Retrieval | Best chunk once | Best chunk every message |
-| Output Cleaning | Printed full generated text | Clean answer extraction |
-| UI | Simple input/output | Chatbot style (`You:` / `Bot:`) |
-| Practical Use | QA tool | Interactive chatbot |
+| Knowledge Source | One file (`notes.txt`) | Multiple `.txt` files in folder |
+| Data Loading | Single file read | Auto-load all files |
+| Source Tracking | No source metadata | Tracks filename |
+| Scalability | Limited | Better organized |
+| Retrieval Output | Answer only | Shows source + answer |
+| Knowledge Expansion | Edit one file | Add many files |
+| Project Structure | Flat | Structured knowledge base |
 
 ---
 
 # Detailed Changes
 
-## 1. Added Chat Loop
+## 1. Added `os` Module
 
 ### Old Code
 
-```python
-question = input("Ask question: ")
+No filesystem directory support.
+
+### New Code
+
