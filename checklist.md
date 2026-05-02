@@ -2,19 +2,19 @@
 
 ## Step 1 — Local Model Works
 
-* [*] Create `app.py`
-* [*] Load tokenizer
-* [*] Load Qwen model
-* [*] Ask one hardcoded question
-* [*] Print answer in terminal
+* [.] Create `app.py`
+* [.] Load tokenizer
+* [.] Load Qwen model
+* [.] Ask one hardcoded question
+* [.] Print answer in terminal
 
 ## Step 2 — TXT Knowledge Source
 
-* [ ] Create `notes.txt`
-* [ ] Read txt file in Python
-* [ ] Inject file text into prompt
-* [ ] Ask question in terminal
-* [ ] Answer using txt content
+* [.] Create `notes.txt`
+* [.] Read txt file in Python
+* [.] Inject file text into prompt
+* [.] Ask question in terminal
+* [.] Answer using txt content
 
 ## Step 3 — Real RAG Logic
 
