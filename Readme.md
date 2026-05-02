@@ -1,64 +1,37 @@
-# Zero RAG Closed Context QA
+# SourceIQ – Advanced Local Multi-Document RAG Chatbot
 
-A lightweight local question-answering chatbot built using a pretrained language model and custom prompts.
-
-This project reads information from a local text file (`notes.txt`) and answers user questions **only from the provided context**.
-
-It does **not** use embeddings, vector databases, retrieval pipelines, or internet access.
+SourceIQ is a local RAG chatbot that retrieves and answers questions from multiple documents using chunk-based retrieval and a Transformer LLM.
 
 ---
 
-# What This Project Is
+## 🚀 Features
 
-This project demonstrates a simple alternative to traditional RAG systems.
-
-Instead of:
-
-- Storing vectors
-- Searching embeddings
-- Retrieving chunks
-
-It directly loads text from a file and injects it into the model prompt.
-
-This approach can be called:
-
-- Zero RAG
-- Closed Context QA
-- Prompt-based Local QA
-- Manual Context Injection
+- Multi-document `.txt` ingestion
+- Overlapping text chunking for better context
+- Top-K retrieval for relevant chunks
+- Source tracking (file + chunk ID)
+- Context-grounded responses using :contentReference[oaicite:0]{index=0} Transformers
+- Qwen2.5-0.5B-Instruct model for generation
+- CLI-based interactive chatbot
 
 ---
 
-# Features
+## 🧠 How It Works
 
-- Uses local text file as knowledge source
-- Runs locally on your machine
-- Works offline after first model download
-- User can ask custom questions
-- Responds only from provided notes
-- Returns `Not found` when answer is missing
-- Lightweight and beginner-friendly
+Documents → Chunking → Top-K Retrieval → Context Building → LLM Answer
 
 ---
 
-# Tech Stack
+## ⚙️ Tech Stack
 
-- Python
-- PyTorch
-- Hugging Face Transformers
-- Qwen2.5-0.5B-Instruct
+Python | :contentReference[oaicite:1]{index=1} | Hugging Face Transformers | NLP | RAG
 
 ---
 
-# Recommended Environment
+## 🔮 Future Work
 
-## Operating System
-
-- Windows 10 / 11
-- Linux
-- macOS
-
-## Python Version
-
-```text id="e0nyqf"
-Python 3.10+
+- FAISS / vector database search  
+- Web UI (Streamlit / React)  
+- Chat memory support  
+- PDF/DOCX support  
+- Fast API deployment  
