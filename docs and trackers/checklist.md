@@ -18,10 +18,10 @@
 
 ## Step 3 — Real RAG Logic
 
-* [ ] Split txt into chunks
-* [ ] Find relevant chunk
-* [ ] Pass only relevant chunk to model
-* [ ] Reduce hallucination
+* [x] Split txt into chunks
+* [x] Find relevant chunk
+* [x] Pass only relevant chunk to model
+* [x] Reduce hallucination
 
 ## Step 4 — Chatbot Mode
 

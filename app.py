@@ -12,17 +12,35 @@ model = AutoModelForCausalLM.from_pretrained(
     low_cpu_mem_usage=True
 )
 
+# Read file
 with open("notes.txt", "r", encoding="utf-8") as f:
-    context = f.read()
+    text = f.read()
 
-question = input("Ask question: ")
+# Split into paragraph chunks
+chunks = [c.strip() for c in text.split("\n") if c.strip()]
+
+question = input("Ask question: ").lower()
+
+# Score chunks by keyword overlap
+best_chunk = ""
+best_score = -1
+
+for chunk in chunks:
+    score = 0
+    for word in question.split():
+        if word in chunk.lower():
+            score += 1
+
+    if score > best_score:
+        best_score = score
+        best_chunk = chunk
 
 prompt = f"""
-Read the text below and answer only from it.
-If answer is not present, say Not found.
+Answer only using the context below.
+If answer not found, say Not found.
 
-Text:
-{context}
+Context:
+{best_chunk}
 
 Question:
 {question}
@@ -40,6 +58,9 @@ with torch.no_grad():
     )
 
 answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+print("\nBEST CHUNK:\n")
+print(best_chunk)
 
 print("\nRESULT:\n")
 print(answer)
