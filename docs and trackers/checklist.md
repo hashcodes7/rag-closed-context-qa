@@ -1,6 +1,6 @@
 # Core Build Steps Progress Tracker
 
-## Step 1 — Local Model Works
+## Step 1 — Local Model Works v1
 
 * [x] Create `app.py`
 * [x] Load tokenizer
@@ -8,7 +8,7 @@
 * [x] Ask one hardcoded question
 * [x] Print answer in terminal
 
-## Step 2 — TXT Knowledge Source
+## Step 2 — TXT Knowledge Source v2
 
 * [x] Create `notes.txt`
 * [x] Read txt file in Python
@@ -16,20 +16,20 @@
 * [x] Ask question in terminal
 * [x] Answer using txt content
 
-## Step 3 — Real RAG Logic
+## Step 3 — Real RAG Logic v3
 
 * [x] Split txt into chunks
 * [x] Find relevant chunk
 * [x] Pass only relevant chunk to model
 * [x] Reduce hallucination
 
-## Step 4 — Chatbot Mode
+## Step 4 — Chatbot Mode v4
 
 * [x] Infinite question loop
 * [x] Ask multiple questions
 * [x] Exit with `quit`
 
-## Step 5 — Better Version
+## Step 5 — Better Version v5
 
 * [x] Multiple txt files
 * [x] Save chat history
@@ -39,16 +39,16 @@
 # 🧠 RAG System Upgrade Plan (Terminal-Only)
 ## ✅ Upgrade Checklist
 
-### 🟢 Level 1 — Structure Improvements (No embeddings)
-- [ ] Implement token-aware chunking (200–400 words)
-- [ ] Add overlap between chunks (50–100 words)
-- [ ] Store chunk metadata (source, chunk_id)
-- [ ] Replace single best match with top-k (3–5 chunks)
-- [ ] Improve prompt with strict grounding instructions
+### 🟢 Level 1 — Structure Improvements (No embeddings) v6
+- [x] Implement token-aware chunking (200–400 words)
+- [x] Add overlap between chunks (50–100 words)
+- [x] Store chunk metadata (source, chunk_id)
+- [x] Replace single best match with top-k (3–5 chunks)
+- [x] Improve prompt with strict grounding instructions
 
 ---
 
-### 🟠 Level 2 — Semantic Retrieval (Embeddings)
+### 🟠 Level 2 — Semantic Retrieval (Embeddings) v7
 - [ ] Add sentence-transformer embedding model
 - [ ] Generate embeddings for all chunks at startup
 - [ ] Embed user query
@@ -57,7 +57,7 @@
 
 ---
 
-### 🟣 Level 3 — Retrieval Engine Upgrade (FAISS)
+### 🟣 Level 3 — Retrieval Engine Upgrade (FAISS)  v8
 - [ ] Integrate FAISS vector index
 - [ ] Store embeddings in FAISS instead of Python list scan
 - [ ] Implement fast nearest-neighbor search
@@ -66,7 +66,7 @@
 
 ---
 
-### 🔵 Level 4 — Context Intelligence Layer
+### 🔵 Level 4 — Context Intelligence Layer v9 
 - [ ] Add similarity threshold filtering
 - [ ] Implement query rewriting before embedding
 - [ ] Improve context formatting with structured blocks
@@ -74,7 +74,7 @@
 
 ---
 
-### 🟤 Level 5 — Production-Grade CLI RAG
+### 🟤 Level 5 — Production-Grade CLI RAG v10
 - [ ] Persist FAISS index to disk
 - [ ] Load index on startup
 - [ ] Add logging (query, chunks, scores, answer)

@@ -8,7 +8,7 @@ model_name = "Qwen/Qwen2.5-0.5B-Instruct"
 # -----------------------------
 # 🟢 LOADING PHASE
 # -----------------------------
-
+print("🔄 Model RAGBOT V6 Running........")
 print("🔄 Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 print("✅ Tokenizer loaded")
