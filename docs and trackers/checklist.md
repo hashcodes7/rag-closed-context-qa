@@ -65,6 +65,13 @@
 * [x] Re-score the 10 chunks using the highly accurate Cross-Encoder
 * [x] Pass only the absolute best 3 chunks to the generative model
 
+## Step 9.1 — ChatML Instruction Patch (v9.1)
+* [x] Delete raw f-string prompt formatting
+* [x] Structure prompt as a list of `role` dictionaries
+* [x] Inject chat history as literal `user` and `assistant` messages
+* [x] Use `tokenizer.apply_chat_template()` to compile native instruction tokens
+* [x] Slice model generation output via exact tensor length extraction
+
 ## Step 10 — Streaming Output (Typewriter Effect) (v10)
 * [ ] Implement Hugging Face `TextStreamer`
 * [ ] Bypass wait time by printing tokens to console in real-time

@@ -6,7 +6,7 @@ import os
 import time
 
 # =====================================================
-# 🧠 RAGBOT V9
+# 🧠 RAGBOT V9.1 (ChatML Patch)
 # Level 3 — Two-Stage Retrieval (Cross-Encoder Reranking)
 # Keeps same terminal style + same Qwen model
 # =====================================================
@@ -19,7 +19,7 @@ cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 # 🟢 LOADING PHASE
 # -----------------------------------------------------
 
-print("🔄 RAGBOT V9 Running........")
+print("🔄 RAGBOT V9.1 Running........")
 
 print("🔄 Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -174,7 +174,7 @@ def retrieve_top_k(question, k=3):
 # 🟢 CHAT LOOP
 # -----------------------------------------------------
 
-print("\n🤖 RAGBOT V9 Ready! Type 'quit' to exit.\n")
+print("\n🤖 RAGBOT V9.1 Ready! Type 'quit' to exit.\n")
 
 # 🆕 NEW IN V8: Initialize rolling chat history buffer
 chat_history = []
@@ -222,37 +222,38 @@ while True:
 
     print(f"📚 Context size: {len(context)} characters")
 
-    # 🆕 NEW IN V8: Format recent chat history
-    history_text = ""
-    if chat_history:
-        history_text = "\n--- Recent Chat History ---\n"
-        # Keep only the last 3 exchanges to prevent context bloat
-        for entry in chat_history[-3:]:
-            history_text += f"User: {entry['user']}\nBot: {entry['bot']}\n"
-
     # ---------------------------------------------
-    # PROMPT
+    # PROMPT (V9.1 ChatML Patch)
     # ---------------------------------------------
 
     print("\n🧠 Creating prompt...")
 
-    prompt = f"""
-You are a strict assistant.
+    # 🆕 NEW IN V9.1: Use native ChatML message structuring instead of raw f-strings
+    messages = [
+        {
+            "role": "system", 
+            "content": (
+                "You are an assistant. Answer the user's question using ONLY the provided context.\n"
+                f"<context>\n{context}\n</context>\n"
+                "If the answer is not in the context, reply exactly with 'Not found.' Do not add explanations."
+            )
+        }
+    ]
 
-Answer ONLY using the context below.
-If the answer is not clearly present, say:
-"I don't know based on the provided data."
-{history_text}
-Context:
-{context}
+    # Inject the last 2 conversational turns as actual chat history messages
+    for entry in chat_history[-2:]:
+        messages.append({"role": "user", "content": entry["user"]})
+        messages.append({"role": "assistant", "content": entry["bot"]})
 
-Question:
-{question}
+    # Add the current question
+    messages.append({"role": "user", "content": question})
 
-Answer:
-"""
-
-    print(f"📏 Prompt length: {len(prompt)} characters")
+    # Automatically format the messages using Qwen's native tags (<|im_start|>)
+    text_prompt = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
 
     # ---------------------------------------------
     # TOKENIZE
@@ -260,7 +261,7 @@ Answer:
 
     print("\n🔤 Tokenizing input...")
 
-    inputs = tokenizer(prompt, return_tensors="pt")
+    inputs = tokenizer(text_prompt, return_tensors="pt")
 
     print(f"🧮 Input tokens: {inputs['input_ids'].shape[1]}")
 
@@ -284,11 +285,12 @@ Answer:
     # ---------------------------------------------
     # DECODE
     # ---------------------------------------------
-    
-    answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    if "Answer:" in answer:
-        answer = answer.split("Answer:")[-1].strip()
+    # Strip the input prompt out of the generation to get just the new answer
+    # V9.1 Patch: Because apply_chat_template outputs special tokens, we cleanly strip the prompt
+    input_length = inputs["input_ids"].shape[1]
+    generated_tokens = outputs[0][input_length:]
+    answer = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
 
     # 🆕 NEW IN V8: Append current exchange to history
     chat_history.append({
