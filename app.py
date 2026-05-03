@@ -1,13 +1,14 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import torch
 import torch.nn.functional as F
 import os
 import time
+from threading import Thread
 
 # =====================================================
-# 🧠 RAGBOT V9.1 (ChatML Patch)
-# Level 3 — Two-Stage Retrieval (Cross-Encoder Reranking)
+# 🧠 RAGBOT V10
+# Level 4 — Streaming Output (Typewriter Effect)
 # Keeps same terminal style + same Qwen model
 # =====================================================
 
@@ -19,7 +20,7 @@ cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 # 🟢 LOADING PHASE
 # -----------------------------------------------------
 
-print("🔄 RAGBOT V9.1 Running........")
+print("🔄 RAGBOT V10 Running........")
 
 print("🔄 Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -174,7 +175,7 @@ def retrieve_top_k(question, k=3):
 # 🟢 CHAT LOOP
 # -----------------------------------------------------
 
-print("\n🤖 RAGBOT V9.1 Ready! Type 'quit' to exit.\n")
+print("\n🤖 RAGBOT V10 Ready! Type 'quit' to exit.\n")
 
 # 🆕 NEW IN V8: Initialize rolling chat history buffer
 chat_history = []
@@ -266,46 +267,42 @@ while True:
     print(f"🧮 Input tokens: {inputs['input_ids'].shape[1]}")
 
     # ---------------------------------------------
-    # GENERATE
+    # GENERATE (V10 Streaming Upgrade)
     # ---------------------------------------------
 
     print("\n⚙ Generating response...")
 
-    start = time.time()
+    # Setup the streamer
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=60,
-            do_sample=False
-        )
+    generation_kwargs = dict(
+        **inputs,
+        streamer=streamer,
+        max_new_tokens=150, # Increased for more descriptive streaming
+        do_sample=False
+    )
 
-    print(f"✅ Generation done in {time.time() - start:.2f}s")
-
-    # ---------------------------------------------
-    # DECODE
-    # ---------------------------------------------
-
-    # Strip the input prompt out of the generation to get just the new answer
-    # V9.1 Patch: Because apply_chat_template outputs special tokens, we cleanly strip the prompt
-    input_length = inputs["input_ids"].shape[1]
-    generated_tokens = outputs[0][input_length:]
-    answer = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
-
-    # 🆕 NEW IN V8: Append current exchange to history
-    chat_history.append({
-        "user": question,
-        "bot": answer
-    })
-
-    # ---------------------------------------------
-    # OUTPUT
-    # ---------------------------------------------
-
+    # Start generation in a separate thread so we can iterate the streamer in main
+    thread = Thread(target=model.generate, kwargs=generation_kwargs)
+    
     print("\n==============================")
     print("📌 FINAL RESULT")
     print("==============================")
-
     print("\n📁 Sources:", ", ".join(sources))
-    print("\n🤖 Bot:", answer)
-    print()
+    print("\n🤖 Bot: ", end="", flush=True)
+
+    start_time = time.time()
+    thread.start()
+
+    full_response = ""
+    for new_text in streamer:
+        print(new_text, end="", flush=True)
+        full_response += new_text
+
+    print(f"\n\n✅ Generation done in {time.time() - start_time:.2f}s\n")
+
+    # 🆕 NEW IN V8/V10: Append current exchange to history
+    chat_history.append({
+        "user": question,
+        "bot": full_response.strip()
+    })

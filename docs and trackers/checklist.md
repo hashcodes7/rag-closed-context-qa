@@ -45,10 +45,6 @@
 * [x] Replace word-counting with PyTorch `cosine_similarity`
 * [x] Retrieve top-k conceptually matching chunks regardless of exact vocabulary
 
----
-
-# 🚀 Upcoming Upgrade Roadmap
-
 ## Step 8 — Conversational Memory (Chat History) (v8)
 * [x] Initialize a rolling chat history buffer
 * [x] Append previous user inputs and bot answers to memory
@@ -73,9 +69,14 @@
 * [x] Slice model generation output via exact tensor length extraction
 
 ## Step 10 — Streaming Output (Typewriter Effect) (v10)
-* [ ] Implement Hugging Face `TextStreamer`
-* [ ] Bypass wait time by printing tokens to console in real-time
-* [ ] Create a ChatGPT-like fluid UI experience
+* [x] Implement Hugging Face `TextIteratorStreamer`
+* [x] Use `threading` to run generation in background
+* [x] Bypass wait time by printing tokens to console in real-time
+* [x] Create a ChatGPT-like fluid UI experience
+
+---
+
+# 🚀 Upcoming Upgrade Roadmap
 
 ## Step 11 — Persistent Vector Caching (v11)
 * [ ] Integrate FAISS or local disk serialization (`.pt` files)
