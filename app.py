@@ -5,6 +5,11 @@ import torch.nn.functional as F
 import os
 import time
 
+# =====================================================
+# 🧠 RAGBOT V8.1 (Patch)
+# Level 2 — Semantic Retrieval + Conversational Memory
+# Keeps same terminal style + same Qwen model
+# =====================================================
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
 embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
@@ -13,7 +18,7 @@ embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
 # 🟢 LOADING PHASE
 # -----------------------------------------------------
 
-print("🔄 RAGBOT V8 Running........")
+print("🔄 RAGBOT V8.1 Running........")
 
 print("🔄 Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -151,7 +156,7 @@ def retrieve_top_k(question, k=3):
 # 🟢 CHAT LOOP
 # -----------------------------------------------------
 
-print("\n🤖 RAGBOT V8 Ready! Type 'quit' to exit.\n")
+print("\n🤖 RAGBOT V8.1 Ready! Type 'quit' to exit.\n")
 
 # 🆕 NEW IN V8: Initialize rolling chat history buffer
 chat_history = []
@@ -199,13 +204,15 @@ while True:
 
     print(f"📚 Context size: {len(context)} characters")
 
-    # 🆕 NEW IN V8: Format recent chat history
-    history_text = ""
+    # 🆕 NEW IN V8.1: Format history with Q/A to prevent parrot looping
+    history_text = "No previous history."
     if chat_history:
-        history_text = "\n--- Recent Chat History ---\n"
-        # Keep only the last 3 exchanges to prevent context bloat
-        for entry in chat_history[-3:]:
-            history_text += f"User: {entry['user']}\nBot: {entry['bot']}\n"
+        history_text = ""
+        # Keep only the last 2 exchanges to prevent token bloat and confusion
+        for entry in chat_history[-2:]:
+            # Truncate long bot answers so the model doesn't fixate on them
+            short_bot = entry['bot'][:100] + "..." if len(entry['bot']) > 100 else entry['bot']
+            history_text += f"User: {entry['user']}\nAssistant: {short_bot}\n"
 
     # ---------------------------------------------
     # PROMPT
@@ -213,18 +220,21 @@ while True:
 
     print("\n🧠 Creating prompt...")
 
+    # 🆕 NEW IN V8.1: Simplified rules and added <xml> tags to help 0.5B model parse data
     prompt = f"""
-You are a strict assistant.
+You are an assistant. Answer the Current Question using ONLY the <context>.
+If the answer is not in the <context>, reply exactly with "Not found."
+Use <chat_history> only to understand pronouns or references in the Current Question. Do not repeat the chat history.
 
-Answer ONLY using the context below.
-If the answer is not clearly present, say:
-"I don't know based on the provided data."
+<chat_history>
 {history_text}
-Context:
-{context}
+</chat_history>
 
-Question:
-{question}
+<context>
+{context}
+</context>
+
+Current Question: {question}
 
 Answer:
 """

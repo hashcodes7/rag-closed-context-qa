@@ -54,6 +54,11 @@
 * [x] Append previous user inputs and bot answers to memory
 * [x] Inject the last 2-3 exchanges into the prompt for conversational context
 
+## Step 8.1 — Memory Patch for 0.5B Models (v8.1)
+* [x] Isolate chat history and context using XML tags `<chat_history>` and `<context>`
+* [x] Truncate bot's past answers to 100 chars to prevent parrot looping
+* [x] Simplify negative response rules to strictly "Not found."
+
 ## Step 9 — Two-Stage Retrieval (Reranking) (v9)
 * [ ] Introduce a Cross-Encoder model
 * [ ] Retrieve top 10 chunks via fast Bi-Encoder (V7)
