@@ -50,9 +50,9 @@
 # 🚀 Upcoming Upgrade Roadmap
 
 ## Step 8 — Conversational Memory (Chat History) (v8)
-* [ ] Initialize a rolling chat history buffer
-* [ ] Append previous user inputs and bot answers to memory
-* [ ] Inject the last 2-3 exchanges into the prompt for conversational context
+* [x] Initialize a rolling chat history buffer
+* [x] Append previous user inputs and bot answers to memory
+* [x] Inject the last 2-3 exchanges into the prompt for conversational context
 
 ## Step 9 — Two-Stage Retrieval (Reranking) (v9)
 * [ ] Introduce a Cross-Encoder model

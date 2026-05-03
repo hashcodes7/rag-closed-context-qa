@@ -1,3 +1,70 @@
+# 🤖 V8 RAG-style Closed Context QA Bot
+
+## 🏗️ Summary
+
+> [!NOTE]
+> **Goal For This Version**  
+> Build a **V8 RAG-style Closed Context QA Bot**. This version introduces **Conversational Memory (Chat History)**, allowing the model to remember past exchanges so you can ask natural follow-up questions.
+
+> [!IMPORTANT]
+> **Changes from Last Version [v7] to Current Version [v8]**  
+> * Initialized a `chat_history = []` buffer list outside the main chat loop.
+> * Formatted a `history_text` string that pulls the last 3 User/Bot exchanges.
+> * Injected `{history_text}` directly into the system prompt right before the Context block.
+> * Added logic to append `{"user": question, "bot": answer}` to the `chat_history` list at the end of every turn.
+
+> [!IMPORTANT]
+> **Why the changes were made (problem faced)**  
+> Prior to V8, the bot suffered from "amnesia". Every single query was treated as a completely isolated event. If you asked *"What is the sick leave policy?"* and the bot answered *"10 days"*, you couldn't follow up with *"Can I extend it?"* because the bot had no memory of what "it" was.
+
+> [!IMPORTANT]
+> **How the new version solves the problem**  
+> By injecting the previous conversational turns directly into the prompt, the model can "read" its own recent history. When it sees *"Can I extend it?"*, it looks slightly up in the prompt, sees the previous discussion about sick leave, and successfully deduces the context. Limiting it to the last 3 exchanges (`[-3:]`) ensures we don't accidentally bloat the token window.
+
+---
+
+## 🏗️ Architecture
+
+### 🔄 Full System Flow
+
+```mermaid
+flowchart TD
+    A[📁 knowledge_source/] --> B[🪓 Chunking] --> C[🧠 Vector Embeddings Cache]
+    
+    L((🔄 Chat Loop)) --> D[👤 User Question]
+    D -->|If 'quit'| X[🛑 Exit]
+    
+    D --> E[🔍 Semantic Retrieval]
+    C --> E
+    
+    E -->|Top Semantic Chunks| F[🛠️ Prompt Builder]
+    D -->|Current Question| F
+    M[(📚 Chat History Buffer)] -->|Last 3 Turns| F
+    
+    F --> G[🔠 Tokenizer & Qwen Model]
+    G -->|Raw Output| H[🧹 Answer Extraction]
+    H -->|Clean Answer| I[🎯 Output & Citations]
+    
+    I -->|Save Exchange| M
+    I --> L
+
+    classDef file fill:#e1f5fe,stroke:#01579b;
+    classDef user fill:#fff3e0,stroke:#e65100;
+    classDef core fill:#e8f5e9,stroke:#1b5e20;
+    classDef memory fill:#fce4ec,stroke:#c2185b,stroke-width:2px;
+
+    class A file;
+    class D,X user;
+    class G,H core;
+    class B,C,E,F,I,L new_logic;
+    class M memory;
+```
+
+---
+
+### 📦 Code
+
+```python
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from sentence_transformers import SentenceTransformer
 import torch
@@ -5,6 +72,11 @@ import torch.nn.functional as F
 import os
 import time
 
+# =====================================================
+# 🧠 RAGBOT V8
+# Level 2 — Semantic Retrieval + Conversational Memory
+# Keeps same terminal style + same Qwen model
+# =====================================================
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
 embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
@@ -12,7 +84,6 @@ embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
 # -----------------------------------------------------
 # 🟢 LOADING PHASE
 # -----------------------------------------------------
-
 print("🔄 RAGBOT V8 Running........")
 
 print("🔄 Loading tokenizer...")
@@ -34,24 +105,19 @@ print("✅ Embedding model loaded")
 # -----------------------------------------------------
 # 🟢 CHUNKING
 # -----------------------------------------------------
-
 def chunk_text(text, chunk_size=250, overlap=80):
     words = text.split()
     chunks = []
-
     start = 0
 
     while start < len(words):
         end = start + chunk_size
         chunk = " ".join(words[start:end]).strip()
-
         if chunk:
             chunks.append(chunk)
-
         start += chunk_size - overlap
 
     return chunks
-
 
 def truncate(text, max_words=120):
     return " ".join(text.split()[:max_words])
@@ -60,7 +126,6 @@ def truncate(text, max_words=120):
 # -----------------------------------------------------
 # 🟢 LOAD KNOWLEDGE BASE
 # -----------------------------------------------------
-
 print("\n📂 Loading knowledge base...")
 
 chunks = []
@@ -73,9 +138,7 @@ for filename in os.listdir(folder):
 
     file_count += 1
     print(f"📄 Reading file: {filename}")
-
     path = os.path.join(folder, filename)
-
     with open(path, "r", encoding="utf-8") as f:
         text = f.read()
 
@@ -95,13 +158,10 @@ print(f"✅ Loaded {len(chunks)} chunks from {file_count} files")
 # -----------------------------------------------------
 # 🟠 LEVEL 2 — GENERATE CHUNK EMBEDDINGS
 # -----------------------------------------------------
-
 print("\n🧠 Creating embeddings for all chunks...")
 
 chunk_texts = [item["text"] for item in chunks]
-
 start = time.time()
-
 chunk_embeddings = embedder.encode(
     chunk_texts,
     convert_to_tensor=True,
@@ -114,36 +174,29 @@ print(f"✅ Chunk embeddings ready in {time.time() - start:.2f}s")
 # -----------------------------------------------------
 # 🟠 SEMANTIC RETRIEVAL
 # -----------------------------------------------------
-
 def retrieve_top_k(question, k=3):
     print("\n🔍 Semantic retrieval started...")
-
     start = time.time()
 
-    # Embed query
     query_embedding = embedder.encode(
         question,
         convert_to_tensor=True
     )
 
-    # Cosine similarity
     scores = F.cosine_similarity(
         query_embedding.unsqueeze(0),
         chunk_embeddings
     )
 
-    # Top K indexes
     top_scores, top_indices = torch.topk(scores, k=min(k, len(chunks)))
 
     results = []
-
     for score, idx in zip(top_scores, top_indices):
         item = chunks[idx.item()].copy()
         item["score"] = float(score.item())
         results.append(item)
 
     print(f"✅ Retrieved {len(results)} chunks in {time.time() - start:.2f}s")
-
     return results
 
 
@@ -174,7 +227,6 @@ while True:
     # ---------------------------------------------
     # RETRIEVE TOP CHUNKS
     # ---------------------------------------------
-
     top_chunks = retrieve_top_k(question, k=3)
 
     if not top_chunks:
@@ -184,7 +236,6 @@ while True:
     # ---------------------------------------------
     # BUILD CONTEXT
     # ---------------------------------------------
-
     print("\n🧱 Building context...")
 
     context = ""
@@ -210,7 +261,6 @@ while True:
     # ---------------------------------------------
     # PROMPT
     # ---------------------------------------------
-
     print("\n🧠 Creating prompt...")
 
     prompt = f"""
@@ -234,7 +284,6 @@ Answer:
     # ---------------------------------------------
     # TOKENIZE
     # ---------------------------------------------
-
     print("\n🔤 Tokenizing input...")
 
     inputs = tokenizer(prompt, return_tensors="pt")
@@ -244,7 +293,6 @@ Answer:
     # ---------------------------------------------
     # GENERATE
     # ---------------------------------------------
-
     print("\n⚙ Generating response...")
 
     start = time.time()
@@ -261,7 +309,6 @@ Answer:
     # ---------------------------------------------
     # DECODE
     # ---------------------------------------------
-
     answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     if "Answer:" in answer:
@@ -276,7 +323,6 @@ Answer:
     # ---------------------------------------------
     # OUTPUT
     # ---------------------------------------------
-
     print("\n==============================")
     print("📌 FINAL RESULT")
     print("==============================")
@@ -284,3 +330,74 @@ Answer:
     print("\n📁 Sources:", ", ".join(sources))
     print("\n🤖 Bot:", answer)
     print()
+```
+
+---
+
+## 🏗️ Stepwise Architecture
+
+*(Note: Semantic Search mapping functions have been omitted to focus purely on the V8 Memory upgrade mechanics).*
+
+### 📚 Step 1 — Initialize Memory Buffer (🆕 NEW IN V8)
+
+```python
+chat_history = []
+
+while True:
+```
+
+**Purpose:** Defined an empty list outside the `while True:` loop. This array acts as the bot's short-term memory, surviving across infinite user inputs.
+
+---
+
+### 📝 Step 2 — Format History Text (🆕 NEW IN V8)
+
+```python
+    history_text = ""
+    if chat_history:
+        history_text = "\n--- Recent Chat History ---\n"
+        for entry in chat_history[-3:]:
+            history_text += f"User: {entry['user']}\nBot: {entry['bot']}\n"
+```
+
+**Purpose:** Before building the final prompt, the script checks if there is any memory stored. If so, it loops through the history. It uses Python slicing `[-3:]` to grab only the last 3 exchanges, ensuring the memory string doesn't grow infinitely large and crash the token limit.
+
+---
+
+### 💉 Step 3 — Inject Memory into Prompt (🆕 NEW IN V8)
+
+```python
+    prompt = f"""
+You are a strict assistant.
+
+Answer ONLY using the context below.
+...
+{history_text}
+Context:
+{context}
+
+Question:
+{question}
+"""
+```
+
+**Purpose:** Drops the `history_text` string directly into the system prompt right above the context window. Now, when the model reads the prompt, it gets a recap of the conversation right before attempting to answer the new question.
+
+---
+
+### 💾 Step 4 — Save Conversation Turn (🆕 NEW IN V8)
+
+```python
+    chat_history.append({
+        "user": question,
+        "bot": answer
+    })
+```
+
+**Purpose:** After the AI generates a clean, extracted answer, the script saves both the user's raw query and the AI's final answer as a dictionary into the `chat_history` list so it can be remembered for the next loop iteration.
+
+---
+
+## 🚀 Final One-Line Understanding
+
+> **This architecture implements conversational memory by saving Q&A pairs to a list and injecting the last 3 turns into the prompt, allowing the model to answer follow-up questions.**
