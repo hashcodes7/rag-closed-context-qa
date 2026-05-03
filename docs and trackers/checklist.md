@@ -1,90 +1,89 @@
-# Core Build Steps Progress Tracker
+# SourceIQ: Core Build Progress Tracker
 
-## Step 1 — Local Model Works (v1)
-* [x] Create `app.py`
+## ✅ Phase 1: The Core Engine (Completed)
+
+### Step 1 — Local Model Works (v1)
 * [x] Load tokenizer and Qwen model
-* [x] Ask one hardcoded question against hardcoded text
-* [x] Print answer in terminal
+* [x] Basic terminal input/output loop
 
-## Step 2 — TXT Knowledge Source (v2)
-* [x] Read text from external `notes.txt` file
-* [x] Accept dynamic user questions via `input()`
+### Step 2 — TXT Knowledge Source (v2)
+* [x] Read text from external `.txt` files
 
-## Step 3 — Basic RAG Logic (v3)
-* [x] Split text into chunks using `\n`
-* [x] Find the single best chunk via exact keyword overlap
-* [x] Pass only the best chunk to the model to save tokens
+### Step 3 — Basic RAG Logic (v3)
+* [x] Basic keyword-based chunk retrieval
 
-## Step 4 — Chatbot Mode (v4)
-* [x] Implement continuous `while True:` chat loop
-* [x] Add graceful `quit` exit condition
-* [x] Clean AI output by extracting text after "Answer:"
+### Step 4 — Chatbot Mode (v4)
+* [x] Continuous chat loop and `quit` condition
 
-## Step 5 — Multi-Document Citations (v5)
-* [x] Scan `knowledge_source` directory for multiple `.txt` files
-* [x] Store chunks as dictionaries with source filename metadata
-* [x] Print exact file citation before generating answer
+### Step 5 — Multi-Document Citations (v5)
+* [x] File-level source tracking and citations
 
-## Step 6 — Advanced Structure & Telemetry (v6)
-* [x] Implement sliding window chunking (250 words, 80 overlap)
-* [x] Store `chunk_id` in metadata
-* [x] Retrieve Top-K (4) chunks instead of a single chunk
-* [x] Combine multiple chunks into a metadata-tagged context string
-* [x] Upgrade to Strict System Prompt to prevent hallucinations
-* [x] Add `time.time()` telemetry logging for backend metrics
+### Step 6 — Advanced Structure & Telemetry (v6)
+* [x] Sliding window chunking and metadata
+* [x] Time-based telemetry logging
 
-## Step 6.1 — Context Truncation Patch (v6.1)
-* [x] Add `truncate()` function to cap chunks at 120 words
-* [x] Simplify metadata tags in context builder
-* [x] Lower `max_new_tokens` to 60 for faster, punchier answers
+### Step 7 — Semantic Search & Embeddings (v7)
+* [x] Vector embeddings via `sentence-transformers`
+* [x] Cosine similarity retrieval
 
-## Step 7 — Semantic Search & Embeddings (v7)
-* [x] Import `sentence-transformers` embedding model
-* [x] Convert document chunks into mathematical vector matrices on startup
-* [x] Convert user query into a mathematical vector
-* [x] Replace word-counting with PyTorch `cosine_similarity`
-* [x] Retrieve top-k conceptually matching chunks regardless of exact vocabulary
+### Step 8 — Conversational Memory (v8 / v8.1)
+* [x] Rolling chat history buffer
+* [x] XML tagging patch for 0.5B model stability
 
-## Step 8 — Conversational Memory (Chat History) (v8)
-* [x] Initialize a rolling chat history buffer
-* [x] Append previous user inputs and bot answers to memory
-* [x] Inject the last 2-3 exchanges into the prompt for conversational context
+### Step 9 — Two-Stage Retrieval (v9 / v9.1)
+* [x] Cross-Encoder Reranking logic
+* [x] **ChatML Patch**: Native `apply_chat_template` implementation
 
-## Step 8.1 — Memory Patch for 0.5B Models (v8.1)
-* [x] Isolate chat history and context using XML tags `<chat_history>` and `<context>`
-* [x] Truncate bot's past answers to 100 chars to prevent parrot looping
-* [x] Simplify negative response rules to strictly "Not found."
+### Step 10 — Streaming Output (v10)
+* [x] Multithreaded `TextIteratorStreamer` for real-time output
 
-## Step 9 — Two-Stage Retrieval (Reranking) (v9)
-* [x] Introduce a Cross-Encoder model
-* [x] Retrieve top 10 chunks via fast Bi-Encoder (V7)
-* [x] Re-score the 10 chunks using the highly accurate Cross-Encoder
-* [x] Pass only the absolute best 3 chunks to the generative model
-
-## Step 9.1 — ChatML Instruction Patch (v9.1)
-* [x] Delete raw f-string prompt formatting
-* [x] Structure prompt as a list of `role` dictionaries
-* [x] Inject chat history as literal `user` and `assistant` messages
-* [x] Use `tokenizer.apply_chat_template()` to compile native instruction tokens
-* [x] Slice model generation output via exact tensor length extraction
-
-## Step 10 — Streaming Output (Typewriter Effect) (v10)
-* [x] Implement Hugging Face `TextIteratorStreamer`
-* [x] Use `threading` to run generation in background
-* [x] Bypass wait time by printing tokens to console in real-time
-* [x] Create a ChatGPT-like fluid UI experience
+### Step 11 — Persistent Vector Caching (v11)
+* [x] `torch.save/load` for instant startup from `vector_cache.pt`
 
 ---
 
-# 🚀 Upcoming Upgrade Roadmap
+# 🌌 Phase 2: Future Horizon (Performance & UI)
 
-## Step 11 — Persistent Vector Caching (v11)
-* [x] Integrate FAISS or local disk serialization (`.pt` files)
-* [x] Save generated chunk embeddings and metadata to local disk
-* [x] Load pre-computed database instantly on startup to bypass embedding wait times
+## Step 12 — Advanced Chunking (Performance)
+* [ ] Implement `RecursiveCharacterTextSplitter` logic
+* [ ] Ensure sentence-aware boundaries to prevent fact-clipping
+
+## Step 13 — Vector Indexing (Performance)
+* [ ] Integrate **FAISS** for indexed search
+* [ ] Move from linear scan to HNSW (Hierarchical Navigable Small World) index
+
+## Step 14 — Model Quantization (Performance)
+* [ ] Implement 4-bit/8-bit loading via `bitsandbytes`
+* [ ] Optimize VRAM/RAM usage for faster generation
+
+## Step 15 — Hybrid Search (Performance)
+* [ ] Combine Semantic Search with Keyword Search (BM25)
+* [ ] Implement a reciprocal rank fusion (RRF) for scoring
+
+## Step 16 — Streamlit Web UI (Interface)
+* [ ] Create basic `streamlit` chat dashboard
+* [ ] Move terminal telemetry to visual charts
+
+## Step 17 — Interactive UI Features (Interface)
+* [ ] Add document upload management via sidebar
+* [ ] Implement "Click-to-Source" viewing in the browser
+
+## Step 18 — Advanced File Support (Expansion)
+* [ ] Integrate `PyMuPDF` for `.pdf` ingestion
+* [ ] Integrate `python-docx` for `.docx` ingestion
 
 ---
 
-# 🏁 Core Engine Complete!
-You have successfully built a production-grade local RAG pipeline from scratch.
-Next Steps: Web UI, PDF Support, or Production Deployment.
+# 📝 Handover Notes for Future Agents
+
+### Current System State:
+*   **Model**: `Qwen/Qwen2.5-0.5B-Instruct`
+*   **Prompting**: Must use `tokenizer.apply_chat_template` (ChatML) to prevent the 0.5B model from hallucinating.
+*   **Retrieval**: Two-stage (Bi-Encoder `all-MiniLM-L6-v2` -> Cross-Encoder `ms-marco-MiniLM-L-6-v2`).
+*   **Streaming**: Handled via `threading.Thread` and `TextIteratorStreamer`.
+*   **Caching**: Uses `vector_cache.pt`. If you change chunking logic, you **must delete this file** to force a re-index.
+
+### Key Files:
+*   `app.py`: The main entry point and engine.
+*   `knowledge_source/`: Ingest directory for data.
+*   `docs and trackers/`: Historical architecture logs for every version.
