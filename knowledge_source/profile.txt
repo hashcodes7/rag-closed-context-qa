@@ -22,4 +22,4 @@ Role: DevOps Specialist
 Department: Infrastructure
 Joined: January 10, 2021
 Skills: AWS, Docker, Terraform, CI/CD
-Manager: Robert Chang
+Manager: Robert Chang 

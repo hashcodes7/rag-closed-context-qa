@@ -1,246 +1,71 @@
 # Core Build Steps Progress Tracker
 
-## Step 1 — Local Model Works v1
-
+## Step 1 — Local Model Works (v1)
 * [x] Create `app.py`
-* [x] Load tokenizer
-* [x] Load Qwen model
-* [x] Ask one hardcoded question
+* [x] Load tokenizer and Qwen model
+* [x] Ask one hardcoded question against hardcoded text
 * [x] Print answer in terminal
 
-## Step 2 — TXT Knowledge Source v2
+## Step 2 — TXT Knowledge Source (v2)
+* [x] Read text from external `notes.txt` file
+* [x] Accept dynamic user questions via `input()`
 
-* [x] Create `notes.txt`
-* [x] Read txt file in Python
-* [x] Inject file text into prompt
-* [x] Ask question in terminal
-* [x] Answer using txt content
+## Step 3 — Basic RAG Logic (v3)
+* [x] Split text into chunks using `\n`
+* [x] Find the single best chunk via exact keyword overlap
+* [x] Pass only the best chunk to the model to save tokens
 
-## Step 3 — Real RAG Logic v3
+## Step 4 — Chatbot Mode (v4)
+* [x] Implement continuous `while True:` chat loop
+* [x] Add graceful `quit` exit condition
+* [x] Clean AI output by extracting text after "Answer:"
 
-* [x] Split txt into chunks
-* [x] Find relevant chunk
-* [x] Pass only relevant chunk to model
-* [x] Reduce hallucination
+## Step 5 — Multi-Document Citations (v5)
+* [x] Scan `knowledge_source` directory for multiple `.txt` files
+* [x] Store chunks as dictionaries with source filename metadata
+* [x] Print exact file citation before generating answer
 
-## Step 4 — Chatbot Mode v4
+## Step 6 — Advanced Structure & Telemetry (v6)
+* [x] Implement sliding window chunking (250 words, 80 overlap)
+* [x] Store `chunk_id` in metadata
+* [x] Retrieve Top-K (4) chunks instead of a single chunk
+* [x] Combine multiple chunks into a metadata-tagged context string
+* [x] Upgrade to Strict System Prompt to prevent hallucinations
+* [x] Add `time.time()` telemetry logging for backend metrics
 
-* [x] Infinite question loop
-* [x] Ask multiple questions
-* [x] Exit with `quit`
+## Step 6.1 — Context Truncation Patch (v6.1)
+* [x] Add `truncate()` function to cap chunks at 120 words
+* [x] Simplify metadata tags in context builder
+* [x] Lower `max_new_tokens` to 60 for faster, punchier answers
 
-## Step 5 — Better Version v5
-
-* [x] Multiple txt files
-* [x] Save chat history
-* [x] Better prompts
-* [x] Source chunk display
-
-# 🧠 RAG System Upgrade Plan (Terminal-Only)
-## ✅ Upgrade Checklist
-
-### 🟢 Level 1 — Structure Improvements (No embeddings) v6
-- [x] Implement token-aware chunking (200–400 words)
-- [x] Add overlap between chunks (50–100 words)
-- [x] Store chunk metadata (source, chunk_id)
-- [x] Replace single best match with top-k (3–5 chunks)
-- [x] Improve prompt with strict grounding instructions
-
----
-
-### 🟠 Level 2 — Semantic Retrieval (Embeddings) v7
-- [ ] Add sentence-transformer embedding model
-- [ ] Generate embeddings for all chunks at startup
-- [ ] Embed user query
-- [ ] Replace keyword search with cosine similarity
-- [ ] Retrieve top-k semantically similar chunks
+## Step 7 — Semantic Search & Embeddings (v7)
+* [x] Import `sentence-transformers` embedding model
+* [x] Convert document chunks into mathematical vector matrices on startup
+* [x] Convert user query into a mathematical vector
+* [x] Replace word-counting with PyTorch `cosine_similarity`
+* [x] Retrieve top-k conceptually matching chunks regardless of exact vocabulary
 
 ---
 
-### 🟣 Level 3 — Retrieval Engine Upgrade (FAISS)  v8
-- [ ] Integrate FAISS vector index
-- [ ] Store embeddings in FAISS instead of Python list scan
-- [ ] Implement fast nearest-neighbor search
-- [ ] Add hybrid scoring (semantic + keyword optional)
-- [ ] Add MMR to reduce redundant chunks
+# 🚀 Upcoming Upgrade Roadmap
 
----
+## Step 8 — Conversational Memory (Chat History) (v8)
+* [ ] Initialize a rolling chat history buffer
+* [ ] Append previous user inputs and bot answers to memory
+* [ ] Inject the last 2-3 exchanges into the prompt for conversational context
 
-### 🔵 Level 4 — Context Intelligence Layer v9 
-- [ ] Add similarity threshold filtering
-- [ ] Implement query rewriting before embedding
-- [ ] Improve context formatting with structured blocks
-- [ ] Add optional answer verification step
+## Step 9 — Two-Stage Retrieval (Reranking) (v9)
+* [ ] Introduce a Cross-Encoder model
+* [ ] Retrieve top 10 chunks via fast Bi-Encoder (V7)
+* [ ] Re-score the 10 chunks using the highly accurate Cross-Encoder
+* [ ] Pass only the absolute best 3 chunks to the generative model
 
----
+## Step 10 — Streaming Output (Typewriter Effect) (v10)
+* [ ] Implement Hugging Face `TextStreamer`
+* [ ] Bypass wait time by printing tokens to console in real-time
+* [ ] Create a ChatGPT-like fluid UI experience
 
-### 🟤 Level 5 — Production-Grade CLI RAG v10
-- [ ] Persist FAISS index to disk
-- [ ] Load index on startup
-- [ ] Add logging (query, chunks, scores, answer)
-- [ ] Add debug mode for retrieval inspection
-- [ ] Move hyperparameters to config file
-
----
-
-# 🚀 Full Upgrade Roadmap
-
----
-
-## 🟢 Level 0 — Baseline (Current System)
-
-### Description
-Current system uses:
-- Line-based chunking
-- Keyword overlap scoring
-- Single best chunk selection
-- Direct prompt injection into LLM
-
-### Limitations
-- No semantic understanding
-- Weak retrieval accuracy
-- Fragile keyword matching
-
----
-
-## 🟢 Level 1 — Clean Chunking + Prompting
-
-### Goal
-Improve structure without changing architecture.
-
-### Improvements
-
-#### 1. Better chunking strategy
-- Replace line splitting with token/word-based chunking
-- Chunk size: 200–400 words
-- Overlap: 50–100 words
-
-#### 2. Metadata enrichment
-Each chunk should store:
-- source file
-- chunk id
-- text
-
-#### 3. Top-k retrieval
-- Instead of 1 chunk, retrieve top 3–5 chunks
-
-#### 4. Improved prompt design
-Add strict grounding rules:
-- Use only context
-- Say "I don't know" if missing
-
----
-
-## 🟠 Level 2 — Semantic Retrieval (Embeddings)
-
-### Goal
-Replace keyword matching with meaning-based retrieval.
-
-### Improvements
-
-#### 1. Embedding model
-- Use sentence-transformers (e.g. MiniLM)
-
-#### 2. Chunk embeddings
-- Precompute embeddings at startup
-
-#### 3. Query embedding
-- Convert user question into vector
-
-#### 4. Similarity search
-- Use cosine similarity
-- Retrieve top-k chunks
-
-### Result
-- Synonym understanding
-- Much better retrieval accuracy
-
----
-
-## 🟣 Level 3 — Retrieval Engine (FAISS)
-
-### Goal
-Make retrieval fast and scalable.
-
-### Improvements
-
-#### 1. FAISS integration
-- Store embeddings in FAISS index
-
-#### 2. Fast search
-- Replace loop-based search
-
-#### 3. Hybrid scoring (optional)
-- Combine semantic + keyword scores
-
-#### 4. Diversity control (MMR)
-- Avoid redundant chunks
-
-### Result
-- Production-level retrieval performance
-
----
-
-## 🔵 Level 4 — Context Intelligence Layer
-
-### Goal
-Improve reasoning quality of RAG pipeline.
-
-### Improvements
-
-#### 1. Context filtering
-- Remove low-score chunks
-
-#### 2. Query rewriting
-- Improve query before embedding
-
-#### 3. Structured context formatting
-- Add source labels and grouping
-
-#### 4. Answer verification (optional)
-- Validate response against context
-
-### Result
-- Fewer hallucinations
-- More grounded answers
-
----
-
-## 🟤 Level 5 — Production CLI RAG System
-
-### Goal
-Make system robust and maintainable.
-
-### Improvements
-
-#### 1. Persistent vector store
-- Save FAISS index to disk
-
-#### 2. Logging system
-Track:
-- query
-- retrieved chunks
-- similarity scores
-- final answer
-
-#### 3. Debug mode
-- Show retrieval pipeline output
-
-#### 4. Config-based system
-- Chunk size
-- top-k
-- thresholds
-
-### Result
-- Fully structured CLI RAG system
-- Easy debugging and tuning
-
----
-
-# 🧠 Final Insight
-
-The biggest improvement comes from:
-
-> 🔥 Replacing keyword matching with embedding-based semantic retrieval
-
-Everything else is incremental refinement on top of that core upgrade.
+## Step 11 — Persistent Vector Caching (v11)
+* [ ] Integrate FAISS or local disk serialization (`.pt` files)
+* [ ] Save generated chunk embeddings and metadata to local disk
+* [ ] Load pre-computed database instantly on startup to bypass embedding wait times

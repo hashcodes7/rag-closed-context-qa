@@ -1,3 +1,71 @@
+# 🤖 V7 RAG-style Closed Context QA Bot
+
+## 🏗️ Summary
+
+> [!NOTE]
+> **Goal For This Version**  
+> Build a **V7 RAG-style Closed Context QA Bot**. This version replaces the fragile word-counting search algorithm with a state-of-the-art **Semantic Retrieval System** powered by Neural Vector Embeddings.
+
+> [!IMPORTANT]
+> **Changes from Last Version [v6.1] to Current Version [v7]**  
+> * Imported `sentence-transformers` and PyTorch's `torch.nn.functional`.
+> * Loaded a dedicated embedding model: `all-MiniLM-L6-v2`.
+> * Converted the entire chunked knowledge base into a mathematical matrix of Vector Embeddings during the loading phase.
+> * Completely removed the `for word in q_words:` loop.
+> * Replaced keyword matching with high-speed PyTorch `F.cosine_similarity` to mathematically calculate the conceptual distance between the question and the chunks.
+
+> [!IMPORTANT]
+> **Why the changes were made (problem faced)**  
+> In V6.1, the retrieval algorithm relied entirely on exact keyword matching. If the HR document said "Employees get paid sick leave", but the user asked "What is the compensation for illness?", the system would find zero overlapping words, score a `0`, and answer "I don't know". Exact keyword matching cannot understand synonyms, context, or semantic meaning.
+
+> [!IMPORTANT]
+> **How the new version solves the problem**  
+> An Embedding Model converts raw text into an array of hundreds of numbers (a vector) representing the core *meaning* of the text. Because "illness" and "sick" have similar meanings, their vectors point in the exact same mathematical direction. By calculating the `cosine_similarity` between the question's vector and the document vectors, the bot magically retrieves conceptually relevant text regardless of the exact vocabulary used!
+
+---
+
+## 🏗️ Architecture
+
+### 🔄 Full System Flow
+
+```mermaid
+flowchart TD
+    A[📁 knowledge_source/] --> B[🪓 Chunking System]
+    B -->|Text Chunks| C[🧠 Embedder Model]
+    C -->|Matrix calculation| D[(🧮 Pre-Computed Vector Cache)]
+    
+    L((🔄 Chat Loop)) --> E[👤 User Question]
+    E -->|If 'quit'| X[🛑 Exit]
+    E --> F[🧠 Embedder Model]
+    F --> G[📉 Question Vector]
+    
+    G --> H[📐 PyTorch Cosine Similarity Search]
+    D --> H
+    H -->|Top 3 Mathematical Matches| I[🛠️ Context Builder & Prompt]
+    
+    I --> J[🔠 Tokenizer]
+    J --> K[🧠 Qwen Generative Model]
+    K -->|Clean Output| M[🎯 Output & Citations]
+    M --> L
+
+    classDef file fill:#e1f5fe,stroke:#01579b;
+    classDef user fill:#fff3e0,stroke:#e65100;
+    classDef core fill:#e8f5e9,stroke:#1b5e20;
+    classDef new_logic fill:#f3e5f5,stroke:#4a148c;
+    classDef semantic fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px;
+
+    class A file;
+    class E,X user;
+    class J,K core;
+    class B,I,L,M new_logic;
+    class C,D,F,G,H semantic;
+```
+
+---
+
+### 📦 Code
+
+```python
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from sentence_transformers import SentenceTransformer
 import torch
@@ -31,6 +99,7 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 print("✅ Qwen model loaded")
 
+# 🆕 NEW IN V7: Loading the tiny, fast embedding model
 print("🔄 Loading embedding model...")
 embedder = SentenceTransformer(embed_model_name)
 print("✅ Embedding model loaded")
@@ -43,7 +112,6 @@ print("✅ Embedding model loaded")
 def chunk_text(text, chunk_size=250, overlap=80):
     words = text.split()
     chunks = []
-
     start = 0
 
     while start < len(words):
@@ -56,7 +124,6 @@ def chunk_text(text, chunk_size=250, overlap=80):
         start += chunk_size - overlap
 
     return chunks
-
 
 def truncate(text, max_words=120):
     return " ".join(text.split()[:max_words])
@@ -98,7 +165,7 @@ print(f"✅ Loaded {len(chunks)} chunks from {file_count} files")
 
 
 # -----------------------------------------------------
-# 🟠 LEVEL 2 — GENERATE CHUNK EMBEDDINGS
+# 🟠 LEVEL 2 — GENERATE CHUNK EMBEDDINGS (🆕 NEW IN V7)
 # -----------------------------------------------------
 
 print("\n🧠 Creating embeddings for all chunks...")
@@ -107,6 +174,7 @@ chunk_texts = [item["text"] for item in chunks]
 
 start = time.time()
 
+# Convert all text chunks into mathematical vectors in one massive batch
 chunk_embeddings = embedder.encode(
     chunk_texts,
     convert_to_tensor=True,
@@ -117,7 +185,7 @@ print(f"✅ Chunk embeddings ready in {time.time() - start:.2f}s")
 
 
 # -----------------------------------------------------
-# 🟠 SEMANTIC RETRIEVAL
+# 🟠 SEMANTIC RETRIEVAL (🆕 NEW IN V7)
 # -----------------------------------------------------
 
 def retrieve_top_k(question, k=3):
@@ -125,19 +193,19 @@ def retrieve_top_k(question, k=3):
 
     start = time.time()
 
-    # Embed query
+    # Embed query (convert question to vector)
     query_embedding = embedder.encode(
         question,
         convert_to_tensor=True
     )
 
-    # Cosine similarity
+    # Calculate Cosine Similarity between question vector and ALL chunk vectors
     scores = F.cosine_similarity(
         query_embedding.unsqueeze(0),
         chunk_embeddings
     )
 
-    # Top K indexes
+    # Rapidly grab the highest K scores using PyTorch
     top_scores, top_indices = torch.topk(scores, k=min(k, len(chunks)))
 
     results = []
@@ -193,6 +261,7 @@ while True:
     sources = set()
 
     for c in top_chunks:
+        # 🆕 NEW IN V7: Now displays the mathematical 'Score' to show confidence!
         context += (
             f"\n[Source: {c['source']} | Score: {c['score']:.3f}]\n"
             f"{truncate(c['text'])}\n"
@@ -272,3 +341,84 @@ Answer:
     print("\n📁 Sources:", ", ".join(sources))
     print("\n🤖 Bot:", answer)
     print()
+```
+
+---
+
+## 🏗️ Stepwise Architecture
+
+*(Note: Basic steps like File Loading and Tokenization are omitted to focus purely on the massive V7 Semantic Search upgrade mechanics).*
+
+### 🧠 Step 1 — Load Embedding Model (🆕 NEW IN V7)
+
+```python
+embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+embedder = SentenceTransformer(embed_model_name)
+```
+
+**Purpose:** Loads a secondary, specialized AI model whose only job is to understand the mathematical *meaning* of text. `all-MiniLM-L6-v2` is lightning fast and highly accurate for mapping sentences to semantic vector spaces.
+
+---
+
+### 🧮 Step 2 — Generate Database Embeddings (🆕 NEW IN V7)
+
+```python
+chunk_texts = [item["text"] for item in chunks]
+
+chunk_embeddings = embedder.encode(
+    chunk_texts,
+    convert_to_tensor=True,
+    show_progress_bar=True
+)
+```
+
+**Purpose:** Once the text files are cut into sliding-window chunks, this loop passes ALL of them through the `embedder`. It spits out a matrix (`chunk_embeddings`) where every chunk is now represented as a multi-dimensional array of numbers. This happens **once** during startup so searches are instant later.
+
+---
+
+### 📈 Step 3 — Vectorize the Question (🆕 NEW IN V7)
+
+```python
+def retrieve_top_k(question, k=3):
+    query_embedding = embedder.encode(
+        question,
+        convert_to_tensor=True
+    )
+```
+
+**Purpose:** Inside the chat loop, when the user types a question, that question is also passed through the embedder to create a `query_embedding` vector. This puts the question and the data chunks on the exact same mathematical playing field.
+
+---
+
+### 📐 Step 4 — Semantic Search via Cosine Similarity (🆕 NEW IN V7)
+
+```python
+    scores = F.cosine_similarity(
+        query_embedding.unsqueeze(0),
+        chunk_embeddings
+    )
+```
+
+**Purpose:** Replaces the archaic `if word in chunk:` word-counting loop. `F.cosine_similarity` compares the angle between the question's vector and the chunk matrix. If the vectors point in the same direction, they share the same *conceptual meaning*, even if they share zero vocabulary! This operation leverages PyTorch tensor math, scanning thousands of chunks in milliseconds.
+
+---
+
+### 🏆 Step 5 — Retrieve Top K Best Matches
+
+```python
+    top_scores, top_indices = torch.topk(scores, k=min(k, len(chunks)))
+
+    results = []
+    for score, idx in zip(top_scores, top_indices):
+        item = chunks[idx.item()].copy()
+        item["score"] = float(score.item())
+        results.append(item)
+```
+
+**Purpose:** Uses PyTorch's native `topk` sorting algorithm to rapidly slice out the highest scoring matches, appending the exact similarity `score` back to the dictionary for debugging and context transparency.
+
+---
+
+## 🚀 Final One-Line Understanding
+
+> **This architecture drops exact word-matching in favor of PyTorch-driven Vector Embeddings and Cosine Similarity, enabling the bot to search entire directories based on semantic meaning and conceptual synonyms.**
