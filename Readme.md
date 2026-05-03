@@ -9,7 +9,7 @@ SourceIQ is a local RAG chatbot that retrieves and answers questions from multip
 - Multi-document `.txt` ingestion
 - Overlapping text chunking for better context
 - Semantic Vector Embeddings (SentenceTransformers)
-- Top-K semantic retrieval for relevant chunks
+- Two-Stage Retrieval (Bi-Encoder search + Cross-Encoder Reranking)
 - Source tracking (file + chunk ID)
 - Conversational Memory (Follow-up questions)
 - Context-grounded responses using 🤗 Transformers
@@ -20,7 +20,7 @@ SourceIQ is a local RAG chatbot that retrieves and answers questions from multip
 
 ## 🧠 How It Works
 
-Documents → Chunking → Embeddings → Semantic Retrieval → Chat Memory → LLM Answer
+Documents → Chunking → Embeddings → Bi-Encoder Search → Cross-Encoder Reranking → Chat Memory → LLM Answer
 
 ---
 
@@ -33,7 +33,6 @@ Python | :contentReference[oaicite:1]{index=1} | Hugging Face Transformers | NLP
 ## 🔮 Future Work
 
 - FAISS / vector database search  
-- Cross-Encoder Reranking
 - Streaming Output (Typewriter effect)
 - Web UI (Streamlit / React)  
 - PDF/DOCX support  

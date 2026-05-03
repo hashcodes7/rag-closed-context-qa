@@ -60,10 +60,10 @@
 * [x] Simplify negative response rules to strictly "Not found."
 
 ## Step 9 — Two-Stage Retrieval (Reranking) (v9)
-* [ ] Introduce a Cross-Encoder model
-* [ ] Retrieve top 10 chunks via fast Bi-Encoder (V7)
-* [ ] Re-score the 10 chunks using the highly accurate Cross-Encoder
-* [ ] Pass only the absolute best 3 chunks to the generative model
+* [x] Introduce a Cross-Encoder model
+* [x] Retrieve top 10 chunks via fast Bi-Encoder (V7)
+* [x] Re-score the 10 chunks using the highly accurate Cross-Encoder
+* [x] Pass only the absolute best 3 chunks to the generative model
 
 ## Step 10 — Streaming Output (Typewriter Effect) (v10)
 * [ ] Implement Hugging Face `TextStreamer`

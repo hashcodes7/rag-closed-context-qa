@@ -1,24 +1,25 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, CrossEncoder
 import torch
 import torch.nn.functional as F
 import os
 import time
 
 # =====================================================
-# 🧠 RAGBOT V8.1 (Patch)
-# Level 2 — Semantic Retrieval + Conversational Memory
+# 🧠 RAGBOT V9
+# Level 3 — Two-Stage Retrieval (Cross-Encoder Reranking)
 # Keeps same terminal style + same Qwen model
 # =====================================================
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
 embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 # -----------------------------------------------------
 # 🟢 LOADING PHASE
 # -----------------------------------------------------
 
-print("🔄 RAGBOT V8.1 Running........")
+print("🔄 RAGBOT V9 Running........")
 
 print("🔄 Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -31,9 +32,14 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 print("✅ Qwen model loaded")
 
-print("🔄 Loading embedding model...")
+print("🔄 Loading embedding model (Bi-Encoder)...")
 embedder = SentenceTransformer(embed_model_name)
 print("✅ Embedding model loaded")
+
+# 🆕 NEW IN V9: Load Cross-Encoder for reranking
+print("🔄 Loading reranker model (Cross-Encoder)...")
+cross_encoder = CrossEncoder(cross_encoder_model_name)
+print("✅ Reranker model loaded")
 
 
 # -----------------------------------------------------
@@ -117,46 +123,58 @@ print(f"✅ Chunk embeddings ready in {time.time() - start:.2f}s")
 
 
 # -----------------------------------------------------
-# 🟠 SEMANTIC RETRIEVAL
+# 🟠 SEMANTIC RETRIEVAL (V9 TWO-STAGE)
 # -----------------------------------------------------
-
 def retrieve_top_k(question, k=3):
-    print("\n🔍 Semantic retrieval started...")
-
+    print("\n🔍 Stage 1: Fast Semantic Retrieval (Bi-Encoder)...")
     start = time.time()
 
-    # Embed query
     query_embedding = embedder.encode(
         question,
         convert_to_tensor=True
     )
 
-    # Cosine similarity
     scores = F.cosine_similarity(
         query_embedding.unsqueeze(0),
         chunk_embeddings
     )
 
-    # Top K indexes
-    top_scores, top_indices = torch.topk(scores, k=min(k, len(chunks)))
+    # 🆕 NEW IN V9: Retrieve top 10 chunks initially
+    top_scores, top_indices = torch.topk(scores, k=min(10, len(chunks)))
 
-    results = []
-
+    initial_results = []
     for score, idx in zip(top_scores, top_indices):
         item = chunks[idx.item()].copy()
-        item["score"] = float(score.item())
-        results.append(item)
+        initial_results.append(item)
 
-    print(f"✅ Retrieved {len(results)} chunks in {time.time() - start:.2f}s")
+    print(f"✅ Stage 1 retrieved {len(initial_results)} broad chunks in {time.time() - start:.2f}s")
 
-    return results
+    # 🆕 NEW IN V9: Stage 2 - Cross-Encoder Reranking
+    print("🎯 Stage 2: Cross-Encoder Reranking...")
+    rerank_start = time.time()
+
+    cross_inp = [[question, item["text"]] for item in initial_results]
+    cross_scores = cross_encoder.predict(cross_inp)
+
+    # Attach new scores and sort
+    for i in range(len(initial_results)):
+        initial_results[i]["score"] = float(cross_scores[i])
+    
+    initial_results.sort(key=lambda x: x["score"], reverse=True)
+
+    # Select the absolute best 'k' chunks
+    final_results = initial_results[:k]
+
+    print(f"✅ Stage 2 reranked and selected top {k} chunks in {time.time() - rerank_start:.2f}s")
+    
+    return final_results
 
 
 # -----------------------------------------------------
 # 🟢 CHAT LOOP
 # -----------------------------------------------------
 
-print("\n🤖 RAGBOT V8.1 Ready! Type 'quit' to exit.\n")
+print("\n🤖 RAGBOT V9 Ready! Type 'quit' to exit.\n")
 
 # 🆕 NEW IN V8: Initialize rolling chat history buffer
 chat_history = []
@@ -204,15 +222,13 @@ while True:
 
     print(f"📚 Context size: {len(context)} characters")
 
-    # 🆕 NEW IN V8.1: Format history with Q/A to prevent parrot looping
-    history_text = "No previous history."
+    # 🆕 NEW IN V8: Format recent chat history
+    history_text = ""
     if chat_history:
-        history_text = ""
-        # Keep only the last 2 exchanges to prevent token bloat and confusion
-        for entry in chat_history[-2:]:
-            # Truncate long bot answers so the model doesn't fixate on them
-            short_bot = entry['bot'][:100] + "..." if len(entry['bot']) > 100 else entry['bot']
-            history_text += f"User: {entry['user']}\nAssistant: {short_bot}\n"
+        history_text = "\n--- Recent Chat History ---\n"
+        # Keep only the last 3 exchanges to prevent context bloat
+        for entry in chat_history[-3:]:
+            history_text += f"User: {entry['user']}\nBot: {entry['bot']}\n"
 
     # ---------------------------------------------
     # PROMPT
@@ -220,21 +236,18 @@ while True:
 
     print("\n🧠 Creating prompt...")
 
-    # 🆕 NEW IN V8.1: Simplified rules and added <xml> tags to help 0.5B model parse data
     prompt = f"""
-You are an assistant. Answer the Current Question using ONLY the <context>.
-If the answer is not in the <context>, reply exactly with "Not found."
-Use <chat_history> only to understand pronouns or references in the Current Question. Do not repeat the chat history.
+You are a strict assistant.
 
-<chat_history>
+Answer ONLY using the context below.
+If the answer is not clearly present, say:
+"I don't know based on the provided data."
 {history_text}
-</chat_history>
-
-<context>
+Context:
 {context}
-</context>
 
-Current Question: {question}
+Question:
+{question}
 
 Answer:
 """
@@ -271,7 +284,7 @@ Answer:
     # ---------------------------------------------
     # DECODE
     # ---------------------------------------------
-
+    
     answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     if "Answer:" in answer:
