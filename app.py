@@ -7,8 +7,8 @@ import time
 from threading import Thread
 
 # =====================================================
-# 🧠 RAGBOT V10
-# Level 4 — Streaming Output (Typewriter Effect)
+# 🧠 RAGBOT V11 (The Finale)
+# Level 5 — Persistent Vector Caching
 # Keeps same terminal style + same Qwen model
 # =====================================================
 
@@ -20,7 +20,7 @@ cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 # 🟢 LOADING PHASE
 # -----------------------------------------------------
 
-print("🔄 RAGBOT V10 Running........")
+print("🔄 RAGBOT V11 Running........")
 
 print("🔄 Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -70,57 +70,52 @@ def truncate(text, max_words=120):
 
 
 # -----------------------------------------------------
-# 🟢 LOAD KNOWLEDGE BASE
+# 🟠 LOADING & CACHING (V11 Final Upgrade)
 # -----------------------------------------------------
 
-print("\n📂 Loading knowledge base...")
-
+CACHE_FILE = "vector_cache.pt"
 chunks = []
-folder = "knowledge_source"
-file_count = 0
+chunk_embeddings = None
 
-for filename in os.listdir(folder):
-    if not filename.endswith(".txt"):
-        continue
+if os.path.exists(CACHE_FILE):
+    print(f"\n💾 Loading cached knowledge base from {CACHE_FILE}...")
+    start = time.time()
+    cache_data = torch.load(CACHE_FILE)
+    chunks = cache_data["chunks"]
+    chunk_embeddings = cache_data["embeddings"]
+    print(f"✅ Cache loaded in {time.time() - start:.2f}s ({len(chunks)} chunks)")
+else:
+    print("\n📂 No cache found. Processing knowledge base from scratch...")
+    
+    # --- LOAD KNOWLEDGE BASE ---
+    folder = "knowledge_source"
+    file_count = 0
+    for filename in os.listdir(folder):
+        if not filename.endswith(".txt"): continue
+        file_count += 1
+        print(f"📄 Reading file: {filename}")
+        path = os.path.join(folder, filename)
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+        
+        print(f"✂ Chunking file: {filename}")
+        text_chunks = chunk_text(text)
+        for i, chunk in enumerate(text_chunks):
+            chunks.append({"source": filename, "chunk_id": i, "text": chunk})
+    
+    print(f"✅ Loaded {len(chunks)} chunks from {file_count} files")
 
-    file_count += 1
-    print(f"📄 Reading file: {filename}")
+    # --- GENERATE EMBEDDINGS ---
+    print("\n🧠 Creating embeddings for all chunks...")
+    chunk_texts = [item["text"] for item in chunks]
+    start = time.time()
+    chunk_embeddings = embedder.encode(chunk_texts, convert_to_tensor=True, show_progress_bar=True)
+    print(f"✅ Chunk embeddings ready in {time.time() - start:.2f}s")
 
-    path = os.path.join(folder, filename)
-
-    with open(path, "r", encoding="utf-8") as f:
-        text = f.read()
-
-    print(f"✂ Chunking file: {filename}")
-    text_chunks = chunk_text(text)
-
-    for i, chunk in enumerate(text_chunks):
-        chunks.append({
-            "source": filename,
-            "chunk_id": i,
-            "text": chunk
-        })
-
-print(f"✅ Loaded {len(chunks)} chunks from {file_count} files")
-
-
-# -----------------------------------------------------
-# 🟠 LEVEL 2 — GENERATE CHUNK EMBEDDINGS
-# -----------------------------------------------------
-
-print("\n🧠 Creating embeddings for all chunks...")
-
-chunk_texts = [item["text"] for item in chunks]
-
-start = time.time()
-
-chunk_embeddings = embedder.encode(
-    chunk_texts,
-    convert_to_tensor=True,
-    show_progress_bar=True
-)
-
-print(f"✅ Chunk embeddings ready in {time.time() - start:.2f}s")
+    # --- SAVE TO CACHE ---
+    print(f"💾 Saving to cache: {CACHE_FILE}...")
+    torch.save({"chunks": chunks, "embeddings": chunk_embeddings}, CACHE_FILE)
+    print("✅ Cache saved successfully")
 
 
 # -----------------------------------------------------
@@ -175,7 +170,7 @@ def retrieve_top_k(question, k=3):
 # 🟢 CHAT LOOP
 # -----------------------------------------------------
 
-print("\n🤖 RAGBOT V10 Ready! Type 'quit' to exit.\n")
+print("\n🤖 RAGBOT V11 Ready! Type 'quit' to exit.\n")
 
 # 🆕 NEW IN V8: Initialize rolling chat history buffer
 chat_history = []

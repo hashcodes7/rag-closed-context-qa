@@ -13,6 +13,7 @@ SourceIQ is a local RAG chatbot that retrieves and answers questions from multip
 - Source tracking (file + chunk ID)
 - Conversational Memory (Follow-up questions)
 - Real-time Streaming Output (Typewriter effect)
+- Persistent Vector Caching (Instant startup)
 - Context-grounded responses using 🤗 Transformers
 - Qwen2.5-0.5B-Instruct model for generation
 - CLI-based interactive chatbot
@@ -33,7 +34,7 @@ Python | PyTorch | Hugging Face Transformers | NLP | RAG
 
 ## 🔮 Future Work
 
-- FAISS / vector database search  
 - Web UI (Streamlit / React)  
 - PDF/DOCX support  
 - Fast API deployment  
+- FAISS / Vector Database Integration (Scale-up)  
