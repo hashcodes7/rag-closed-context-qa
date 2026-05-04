@@ -45,8 +45,8 @@
 # 🌌 Phase 2: Future Horizon (Performance & UI)
 
 ## Step 12 — Advanced Chunking (Performance)
-* [ ] Implement `RecursiveCharacterTextSplitter` logic
-* [ ] Ensure sentence-aware boundaries to prevent fact-clipping
+* [x] Implement `RecursiveCharacterTextSplitter` logic
+* [x] Ensure sentence-aware boundaries to prevent fact-clipping
 
 ## Step 13 — Vector Indexing (Performance)
 * [ ] Integrate **FAISS** for indexed search
@@ -77,9 +77,11 @@
 # 📝 Handover Notes for Future Agents
 
 ### Current System State:
+*   **Version**: `V12`
 *   **Model**: `Qwen/Qwen2.5-0.5B-Instruct`
 *   **Prompting**: Must use `tokenizer.apply_chat_template` (ChatML) to prevent the 0.5B model from hallucinating.
-*   **Retrieval**: Two-stage (Bi-Encoder `all-MiniLM-L6-v2` -> Cross-Encoder `ms-marco-MiniLM-L-6-v2`).
+*   **Chunking**: `recursive_chunk_text()` — separator hierarchy `\n\n` → `\n` → `". "` → `" "`, `chunk_size=1000 chars`, `overlap=200 chars`.
+*   **Retrieval**: Two-stage (Bi-Encoder `all-MiniLM-L6-v2` → Cross-Encoder `ms-marco-MiniLM-L-6-v2`).
 *   **Streaming**: Handled via `threading.Thread` and `TextIteratorStreamer`.
 *   **Caching**: Uses `vector_cache.pt`. If you change chunking logic, you **must delete this file** to force a re-index.
 

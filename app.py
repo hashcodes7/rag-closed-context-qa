@@ -7,9 +7,9 @@ import time
 from threading import Thread
 
 # =====================================================
-# 🧠 RAGBOT V11 (The Finale)
-# Level 5 — Persistent Vector Caching
-# Keeps same terminal style + same Qwen model
+# 🧠 RAGBOT V12
+# Level 6 — Advanced Chunking
+# Sentence-aware Recursive Character Splitter
 # =====================================================
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
@@ -20,7 +20,13 @@ cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 # 🟢 LOADING PHASE
 # -----------------------------------------------------
 
-print("🔄 RAGBOT V11 Running........")
+print("🔄 RAGBOT V12 Running........")
+
+# 🆕 NEW IN V12: Warn user if old cache exists (chunking logic has changed)
+if os.path.exists("vector_cache.pt"):
+    print("\n⚠️  WARNING: A vector_cache.pt from a previous version was detected.")
+    print("   Chunking logic has changed in V12. Please delete vector_cache.pt")
+    print("   before running to force a clean re-index.\n")
 
 print("🔄 Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -47,22 +53,67 @@ print("✅ Reranker model loaded")
 # 🟢 CHUNKING
 # -----------------------------------------------------
 
-def chunk_text(text, chunk_size=250, overlap=80):
-    words = text.split()
-    chunks = []
+# 🆕 NEW IN V12: Sentence-aware Recursive Character Splitter
+def recursive_chunk_text(text, chunk_size=1000, overlap=200):
+    """
+    Splits text recursively using a separator hierarchy:
+      1. Paragraph breaks (\n\n)
+      2. Line breaks (\n)
+      3. Sentence endings ('. ')
+      4. Word boundaries (' ')
+    This prevents facts from being clipped mid-sentence.
+    """
+    separators = ["\n\n", "\n", ". ", " "]
 
-    start = 0
+    def _split(text, separators):
+        """Recursively split text using the next separator in the hierarchy."""
+        if not text.strip():
+            return []
 
-    while start < len(words):
-        end = start + chunk_size
-        chunk = " ".join(words[start:end]).strip()
+        # If the text is already small enough, return it as-is
+        if len(text) <= chunk_size:
+            return [text.strip()]
 
-        if chunk:
-            chunks.append(chunk)
+        sep = separators[0]
+        remaining_seps = separators[1:]
 
-        start += chunk_size - overlap
+        parts = text.split(sep)
 
-    return chunks
+        chunks = []
+        current = ""
+
+        for part in parts:
+            candidate = (current + sep + part).strip() if current else part.strip()
+
+            if len(candidate) <= chunk_size:
+                current = candidate
+            else:
+                # Flush the current buffer
+                if current.strip():
+                    if len(current) > chunk_size and remaining_seps:
+                        # Current buffer is still too large — recurse with finer separator
+                        chunks.extend(_split(current, remaining_seps))
+                    else:
+                        chunks.append(current.strip())
+
+                # Start a new buffer with overlap from the last chunk
+                if chunks and overlap > 0:
+                    last = chunks[-1]
+                    overlap_text = last[-overlap:].strip()
+                    current = (overlap_text + " " + part.strip()).strip()
+                else:
+                    current = part.strip()
+
+        # Flush any remaining buffer
+        if current.strip():
+            if len(current) > chunk_size and remaining_seps:
+                chunks.extend(_split(current, remaining_seps))
+            else:
+                chunks.append(current.strip())
+
+        return chunks
+
+    return _split(text, separators)
 
 
 def truncate(text, max_words=120):
@@ -99,7 +150,7 @@ else:
             text = f.read()
         
         print(f"✂ Chunking file: {filename}")
-        text_chunks = chunk_text(text)
+        text_chunks = recursive_chunk_text(text)
         for i, chunk in enumerate(text_chunks):
             chunks.append({"source": filename, "chunk_id": i, "text": chunk})
     
@@ -170,7 +221,7 @@ def retrieve_top_k(question, k=3):
 # 🟢 CHAT LOOP
 # -----------------------------------------------------
 
-print("\n🤖 RAGBOT V11 Ready! Type 'quit' to exit.\n")
+print("\n🤖 RAGBOT V12 Ready! Type 'quit' to exit.\n")
 
 # 🆕 NEW IN V8: Initialize rolling chat history buffer
 chat_history = []
