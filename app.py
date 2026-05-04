@@ -1,15 +1,16 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import torch
-import torch.nn.functional as F
+import faiss
+import numpy as np
 import os
 import time
 from threading import Thread
 
 # =====================================================
-# 🧠 RAGBOT V12
-# Level 6 — Advanced Chunking
-# Sentence-aware Recursive Character Splitter
+# 🧠 RAGBOT V13
+# Level 7 — FAISS HNSW Vector Indexing
+# Sub-linear ANN search replacing linear cosine scan
 # =====================================================
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
@@ -20,13 +21,7 @@ cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 # 🟢 LOADING PHASE
 # -----------------------------------------------------
 
-print("🔄 RAGBOT V12 Running........")
-
-# 🆕 NEW IN V12: Warn user if old cache exists (chunking logic has changed)
-if os.path.exists("vector_cache.pt"):
-    print("\n⚠️  WARNING: A vector_cache.pt from a previous version was detected.")
-    print("   Chunking logic has changed in V12. Please delete vector_cache.pt")
-    print("   before running to force a clean re-index.\n")
+print("🔄 RAGBOT V13 Running........")
 
 print("🔄 Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -121,23 +116,27 @@ def truncate(text, max_words=120):
 
 
 # -----------------------------------------------------
-# 🟠 LOADING & CACHING (V11 Final Upgrade)
+# 🟠 LOADING & CACHING (V13 — Dual-File FAISS Cache)
 # -----------------------------------------------------
 
-CACHE_FILE = "vector_cache.pt"
+CACHE_FILE = "vector_cache.pt"       # stores chunk metadata (source, text)
+FAISS_INDEX_FILE = "faiss_index.bin" # stores the FAISS HNSW index
 chunks = []
-chunk_embeddings = None
+faiss_index = None
 
-if os.path.exists(CACHE_FILE):
+# 🆕 NEW IN V13: Both cache files must exist together for a valid cache hit
+if os.path.exists(CACHE_FILE) and os.path.exists(FAISS_INDEX_FILE):
     print(f"\n💾 Loading cached knowledge base from {CACHE_FILE}...")
     start = time.time()
-    cache_data = torch.load(CACHE_FILE)
-    chunks = cache_data["chunks"]
-    chunk_embeddings = cache_data["embeddings"]
-    print(f"✅ Cache loaded in {time.time() - start:.2f}s ({len(chunks)} chunks)")
+    chunks = torch.load(CACHE_FILE)["chunks"]
+    print(f"✅ Chunks loaded: {len(chunks)}")
+
+    print(f"⚡ Loading FAISS index from {FAISS_INDEX_FILE}...")
+    faiss_index = faiss.read_index(FAISS_INDEX_FILE)
+    print(f"✅ FAISS index loaded in {time.time() - start:.2f}s ({faiss_index.ntotal} vectors)")
 else:
     print("\n📂 No cache found. Processing knowledge base from scratch...")
-    
+
     # --- LOAD KNOWLEDGE BASE ---
     folder = "knowledge_source"
     file_count = 0
@@ -148,55 +147,71 @@ else:
         path = os.path.join(folder, filename)
         with open(path, "r", encoding="utf-8") as f:
             text = f.read()
-        
+
         print(f"✂ Chunking file: {filename}")
         text_chunks = recursive_chunk_text(text)
         for i, chunk in enumerate(text_chunks):
             chunks.append({"source": filename, "chunk_id": i, "text": chunk})
-    
+
     print(f"✅ Loaded {len(chunks)} chunks from {file_count} files")
 
     # --- GENERATE EMBEDDINGS ---
     print("\n🧠 Creating embeddings for all chunks...")
     chunk_texts = [item["text"] for item in chunks]
     start = time.time()
-    chunk_embeddings = embedder.encode(chunk_texts, convert_to_tensor=True, show_progress_bar=True)
+    embeddings_np = embedder.encode(chunk_texts, convert_to_numpy=True, show_progress_bar=True).astype("float32")
     print(f"✅ Chunk embeddings ready in {time.time() - start:.2f}s")
 
-    # --- SAVE TO CACHE ---
-    print(f"💾 Saving to cache: {CACHE_FILE}...")
-    torch.save({"chunks": chunks, "embeddings": chunk_embeddings}, CACHE_FILE)
-    print("✅ Cache saved successfully")
+    # --- BUILD FAISS HNSW INDEX ---
+    print("\n🏗️ Building FAISS HNSW index...")
+    index_start = time.time()
+
+    # 🆕 NEW IN V13: L2-normalize so inner product == cosine similarity
+    faiss.normalize_L2(embeddings_np)
+
+    dim = embeddings_np.shape[1]
+    faiss_index = faiss.IndexHNSWFlat(dim, 32, faiss.METRIC_INNER_PRODUCT)
+    faiss_index.hnsw.efConstruction = 200  # Build-time graph accuracy
+    faiss_index.add(embeddings_np)
+
+    print(f"✅ HNSW index built in {time.time() - index_start:.2f}s ({faiss_index.ntotal} vectors indexed)")
+
+    # --- SAVE DUAL CACHE ---
+    print(f"\n💾 Saving chunks to {CACHE_FILE}...")
+    torch.save({"chunks": chunks}, CACHE_FILE)
+
+    print(f"💾 Saving FAISS index to {FAISS_INDEX_FILE}...")
+    faiss.write_index(faiss_index, FAISS_INDEX_FILE)
+    print("✅ Both cache files saved successfully")
 
 
 # -----------------------------------------------------
-# 🟠 SEMANTIC RETRIEVAL (V9 TWO-STAGE)
+# 🟠 SEMANTIC RETRIEVAL (V13 FAISS HNSW + Cross-Encoder)
 # -----------------------------------------------------
 def retrieve_top_k(question, k=3):
-    print("\n🔍 Stage 1: Fast Semantic Retrieval (Bi-Encoder)...")
+    print("\n🔍 Stage 1: FAISS HNSW Search (Bi-Encoder)...")
     start = time.time()
 
-    query_embedding = embedder.encode(
-        question,
-        convert_to_tensor=True
-    )
+    # 🆕 NEW IN V13: Encode query as float32 numpy array and normalize
+    query_vec = embedder.encode([question], convert_to_numpy=True).astype("float32")
+    faiss.normalize_L2(query_vec)  # Must match how the index was built
 
-    scores = F.cosine_similarity(
-        query_embedding.unsqueeze(0),
-        chunk_embeddings
-    )
+    # Set query-time accuracy (higher = more accurate, slower)
+    faiss_index.hnsw.efSearch = 64
 
-    # 🆕 NEW IN V9: Retrieve top 10 chunks initially
-    top_scores, top_indices = torch.topk(scores, k=min(10, len(chunks)))
+    # Search the HNSW index — returns (distances, indices) as 2D arrays
+    distances, indices = faiss_index.search(query_vec, k=min(10, faiss_index.ntotal))
 
     initial_results = []
-    for score, idx in zip(top_scores, top_indices):
-        item = chunks[idx.item()].copy()
+    for dist, idx in zip(distances[0], indices[0]):
+        if idx == -1:  # FAISS pads with -1 when k > ntotal
+            continue
+        item = chunks[idx].copy()
         initial_results.append(item)
 
     print(f"✅ Stage 1 retrieved {len(initial_results)} broad chunks in {time.time() - start:.2f}s")
 
-    # 🆕 NEW IN V9: Stage 2 - Cross-Encoder Reranking
+    # Stage 2 — Cross-Encoder Reranking (unchanged from V9)
     print("🎯 Stage 2: Cross-Encoder Reranking...")
     rerank_start = time.time()
 
@@ -206,14 +221,14 @@ def retrieve_top_k(question, k=3):
     # Attach new scores and sort
     for i in range(len(initial_results)):
         initial_results[i]["score"] = float(cross_scores[i])
-    
+
     initial_results.sort(key=lambda x: x["score"], reverse=True)
 
     # Select the absolute best 'k' chunks
     final_results = initial_results[:k]
 
     print(f"✅ Stage 2 reranked and selected top {k} chunks in {time.time() - rerank_start:.2f}s")
-    
+
     return final_results
 
 
@@ -221,7 +236,7 @@ def retrieve_top_k(question, k=3):
 # 🟢 CHAT LOOP
 # -----------------------------------------------------
 
-print("\n🤖 RAGBOT V12 Ready! Type 'quit' to exit.\n")
+print("\n🤖 RAGBOT V13 Ready! Type 'quit' to exit.\n")
 
 # 🆕 NEW IN V8: Initialize rolling chat history buffer
 chat_history = []

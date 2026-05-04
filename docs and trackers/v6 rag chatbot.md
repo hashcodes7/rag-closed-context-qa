@@ -16,11 +16,43 @@
 
 > [!IMPORTANT]
 > **Why the changes were made (problem faced)**  
-> **1.** Splitting by single lines (V5) shattered the context; paragraphs were torn in half. **2.** Retrieving only 1 chunk meant the bot couldn't synthesize answers that required reading multiple paragraphs or files. **3.** Without strict prompting, feeding the model a massive block of 4 chunks confused it, causing hallucinations. **4.** As the logic grew heavier, the console would "freeze" while thinking, leaving the user wondering if it crashed.
+> V5 had four separate problems that all appeared at the same time as the knowledge base grew larger and more complex.
+>
+> **Problem 1 — Broken sentences.** V5 split text by individual lines (`text.split("\n")`). But well-written documents have paragraphs, not just single sentences per line. When a paragraph spans two lines, splitting by newline rips it in half. The AI would receive half a fact — like reading a textbook where every other sentence is missing. The retrieved chunk was often incomplete and made the answer unreliable.
+>
+> **Problem 2 — Only one chunk.** V5 retrieved only the single best-matching chunk. But many questions require synthesizing information from multiple places. Imagine asking *"What is the company's remote work and salary policy?"* — that information might live in two different files. Giving the model only one chunk means it can only answer half the question. The other half of the answer simply does not exist in its context.
+>
+> **Problem 3 — Hallucinations under pressure.** When we started feeding the model more content (multiple chunks), the raw, unstructured prompt became confusing. The model had no strict rules about what to do when it didn't know something, so it made answers up. This is called hallucination, and it is the most dangerous failure mode of any AI system.
+>
+> **Problem 4 — The frozen screen problem.** As the knowledge base grew and retrieval + generation took longer, the terminal would go completely silent for 30-60 seconds. Users had no way to tell if the program crashed or if it was simply thinking. This made the tool feel broken even when it was working perfectly.
 
 > [!IMPORTANT]
 > **How the new version solves the problem**  
-> **1.** The sliding window guarantees sentences and concepts stay intact across chunk boundaries. **2.** Top-K retrieval allows the model to "read" multiple relevant pieces of the database at once. **3.** The strict prompt forces the model to stay grounded and gives it permission to say "I don't know." **4.** The telemetry prints real-time updates so the user knows exactly what the backend is doing.
+> V6 is a significant architectural upgrade that tackles all four problems simultaneously.
+>
+> **Solution 1 — Sliding Window Chunker.** Instead of splitting by newlines, we introduce a proper `chunk_text()` function. It operates at the word level and uses a "sliding window" strategy. Picture a physical window sliding along a very long sentence written on the wall. The window shows 250 words at a time. When you slide it forward, you don't jump all the way to a new position — you move it by just 170 words, leaving 80 words visible from the previous position. This overlap of 80 words acts as a bridge between chunks, ensuring that any sentence or idea that falls near a boundary is still fully captured in at least one of the two chunks on either side.
+>
+> **Solution 2 — Top-K Retrieval.** Instead of keeping only the single best match, the retrieval function now scores all chunks, sorts them, and returns the top K (where K=4 by default). All four chunks are then concatenated into a single context string and injected into the prompt together. Now the model can read from multiple parts of multiple files in one go.
+>
+> **Solution 3 — Strict Prompt Engineering.** The prompt is rewritten to give the model very clear rules: answer using only the provided context, and if the answer isn't there, say *"I don't know based on the provided data."* Giving the model an explicit "out" — a safe thing to say when it genuinely doesn't know — dramatically reduces hallucination. The model no longer feels compelled to guess.
+>
+> **Solution 4 — Telemetry Logging.** We add `time.time()` calls around every major operation. Every time the bot does something — loading, chunking, retrieving, generating — it prints a timestamped status message. The user can now watch the bot's thought process in real-time, line by line, and never wonder if it has crashed.
+
+---
+
+## 📖 Terminologies
+
+| Term | What It Means |
+|---|---|
+| **Sliding Window Chunking** | A way of dividing text into chunks where each new chunk overlaps slightly with the previous one. This overlap prevents important sentences from being cut in half at a boundary. |
+| **Overlap** | The number of words shared between two consecutive chunks. An overlap of 80 means the last 80 words of one chunk become the first 80 words of the next chunk. |
+| **Top-K Retrieval** | Instead of finding just the single best result, Top-K returns the K highest-scoring results. K=4 means we retrieve the 4 most relevant chunks. |
+| **Context String** | The combined block of text (made from all retrieved chunks) that gets injected into the prompt for the AI to read and answer from. |
+| **Hallucination** | When an AI model generates text that sounds confident and plausible but is factually incorrect or completely made up. It's the AI equivalent of confidently lying. |
+| **Strict Prompt** | A prompt that includes explicit rules and constraints for the model. For example: "Answer ONLY from the context. If you don't know, say X." This reduces hallucination and keeps the model grounded. |
+| **Telemetry** | Real-time logging and measurement of a system's internal operations. Here, it means printing timestamps and status messages so you can see what the bot is doing at every step. |
+| **`time.time()`** | A Python function that returns the current time in seconds. By calling it before and after an operation and subtracting, you get how long that operation took. |
+| **`set()`** | A Python data structure that automatically removes duplicates. Used to collect all source filenames and print each one only once, even if multiple chunks came from the same file. |
 
 ---
 

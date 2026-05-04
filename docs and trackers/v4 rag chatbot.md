@@ -15,11 +15,33 @@
 
 > [!IMPORTANT]
 > **Why the changes were made (problem faced)**  
-> In V3, the script would answer a single question and instantly terminate. You had to constantly restart the Python script and wait for the model to slowly load into memory just to ask a follow-up question. Furthermore, open-source models sometimes echo the prompt back to the user, making the output look messy.
+> Imagine every time you wanted to ask your friend a question, they had to go to sleep, wake up, brush their teeth, eat breakfast, and then get ready — just to answer you. That is what V3 felt like. Every single time you ran the script, Python had to load the **entire AI model** from scratch off the hard drive into RAM. For the Qwen 0.5B model, this process takes a significant amount of time — sometimes over a minute.
+>
+> So in V3, if you asked a question and wanted to ask a follow-up, you had to close the program, wait for it to completely restart, wait for the model to slowly load back into memory, and *then* ask your next question. This made the bot practically unusable for any kind of real back-and-forth conversation.
+>
+> There was a second problem too. When older open-source models generate text, they sometimes don't cleanly separate their answer from the rest of the prompt. Instead of just printing `"The CEO is Alice."`, the model would spit out the entire prompt context — the instructions, the question, everything — and *then* the answer somewhere buried at the end. This made the output look like a wall of messy, confusing text rather than a friendly chat reply.
 
 > [!IMPORTANT]
 > **How the new version solves the problem**  
-> The `while True:` loop keeps the model loaded in memory, allowing for an endless, rapid chatbot experience. By extracting only the text that comes *after* "Answer:", we guarantee a clean, user-friendly reply every single time.
+> The solution to the first problem is beautifully simple: we wrap the entire question-answer pipeline inside a `while True:` loop.
+>
+> Think of `while True:` like a revolving door. Once the model loads, it sits at the revolving door's entrance and says "I'm ready." You walk through, ask a question, get your answer, and the door brings you right back to the entrance for your next question. The model **never goes back to sleep**. It stays loaded in your computer's RAM the entire time, ready and waiting. This is the single biggest UX improvement in V4 — the bot transforms from a one-shot script into a true interactive chatbot.
+>
+> We also solve the messy output problem with a clever trick. We know that the prompt always ends with the word `"Answer:"` right before the model is supposed to speak. So after the model generates its full output string, we simply split that string on the word `"Answer:"` and take everything that comes *after* it. It's like tearing a piece of paper right after the word "Answer:" and throwing away the top half — only the relevant response remains. This gives the user a clean, professional-looking chat interface every single time.
+
+---
+
+## 📖 Terminologies
+
+| Term | What It Means |
+|---|---|
+| **`while True:` Loop** | A loop in Python that runs forever unless explicitly broken. It is the mechanism that keeps the chatbot alive and waiting for the next question without needing to restart. |
+| **RAM (Random Access Memory)** | The fast, temporary memory your computer uses to run programs. Loading the AI model into RAM once and keeping it there is much faster than reloading it from the hard drive every time. |
+| **Model Loading** | The process of reading the AI model's billions of parameters (numerical weights) from storage into RAM so the computer can use them for computation. This is the slow part of startup. |
+| **`break` Statement** | A command in Python that immediately stops a loop. The `quit` check uses `break` to exit the `while True:` loop gracefully. |
+| **Answer Extraction** | The post-processing step where we take the model's raw output and trim away everything except the actual answer text. Done using Python's `.split("Answer:")[-1]`. |
+| **`[-1]`** | Python list indexing that grabs the *last* item. When we split on `"Answer:"`, the piece after the last occurrence is the actual answer, so `[-1]` grabs exactly that. |
+| **Post-Processing** | Any manipulation we do to the AI's raw output *after* it is generated. Cleaning up the text, removing the prompt echo, and trimming whitespace are all forms of post-processing. |
 
 ---
 

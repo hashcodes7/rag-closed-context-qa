@@ -15,11 +15,39 @@
 
 > [!IMPORTANT]
 > **Why the changes were made (problem faced)**  
-> Prior to V8, the bot suffered from "amnesia". Every single query was treated as a completely isolated event. If you asked *"What is the sick leave policy?"* and the bot answered *"10 days"*, you couldn't follow up with *"Can I extend it?"* because the bot had no memory of what "it" was.
+> V7 was a brilliant upgrade for *finding* information, but it had a serious conversational blind spot. The bot had no memory whatsoever. Every single question it received was processed as if it had just been switched on for the very first time. It had no recollection of the previous turn, the turn before that, or anything that had been discussed in the current session.
+>
+> This created a frustrating experience the moment a conversation became multi-turn. Imagine this exchange: You ask, *"Who is the CEO of the company?"* and the bot correctly answers *"Alice Vanguard."* Great. Then you naturally follow up with *"What is her educational background?"* The bot receives this second question in complete isolation. It has no idea who "her" refers to. It searches the knowledge base for chunks related to "her educational background" — a very generic query — and either retrieves the wrong information or says it doesn't know. The pronoun "her" is meaningless without context.
+>
+> This problem is called **context blindness** — the inability of a stateless system to resolve references to prior conversation turns. For a system that's supposed to work like a helpful assistant, this is a critical failure. Real human conversations are built on shared context — people constantly refer back to what was just said, using pronouns and shorthand that only make sense in the context of recent exchanges.
 
 > [!IMPORTANT]
 > **How the new version solves the problem**  
-> By injecting the previous conversational turns directly into the prompt, the model can "read" its own recent history. When it sees *"Can I extend it?"*, it looks slightly up in the prompt, sees the previous discussion about sick leave, and successfully deduces the context. Limiting it to the last 3 exchanges (`[-3:]`) ensures we don't accidentally bloat the token window.
+> V8 gives the bot a **rolling short-term memory** by introducing a `chat_history` buffer — a simple Python list that accumulates past conversations.
+>
+> Here is how it works in plain language. After the bot generates and delivers an answer, that entire exchange (the user's question and the bot's response) gets saved as a small dictionary — like writing it down in a notepad. This notepad is the `chat_history` list. It grows with every turn of conversation.
+>
+> Then, at the start of building the prompt for the *next* question, the bot doesn't just build context from the retrieved chunks. It also opens its notepad and reads the last 3 entries. It formats those entries into a neat block of text: "User said this, Bot said that. User said this, Bot said that." This block is called `history_text`, and it gets injected directly into the prompt right above the knowledge base context.
+>
+> Now, when the model reads the prompt for the follow-up question *"What is her educational background?"*, it first reads the conversation history and sees: *"User asked: Who is the CEO? Bot answered: Alice Vanguard."* With that context in hand, the model can now correctly infer that "her" refers to Alice Vanguard, retrieves the right information, and gives a coherent, contextually aware answer.
+>
+> We limit the history to the last 3 exchanges (`chat_history[-3:]`) to prevent it from growing indefinitely. If we kept the entire conversation history forever, it would eventually bloat the prompt and exhaust the model's context window — the very problem we solved back in V3.
+
+---
+
+## 📖 Terminologies
+
+| Term | What It Means |
+|---|---|
+| **Conversational Memory** | The ability of a chatbot to remember what was said in previous turns of the current conversation and use that context when answering new questions. |
+| **Chat History Buffer** | A list (`chat_history`) that stores past Q&A pairs from the current session. Acts as the bot's short-term memory. |
+| **Rolling Buffer** | A data structure that keeps only the most recent N items. When it's full and a new item is added, the oldest one is discarded. Our history keeps the last 3 turns. |
+| **`[-3:]` (Python Slice)** | Python list slicing syntax that returns the last 3 items from a list. `chat_history[-3:]` means "give me the 3 most recent exchanges." |
+| **Context Blindness** | The failure of a stateless system to resolve references (like pronouns) that only make sense in the context of prior conversation turns. |
+| **Pronoun Resolution** | The ability to understand what words like "her", "it", "they", or "that" refer to based on earlier context. Requires conversational memory. |
+| **Stateless** | A system that treats every input as completely independent, with no memory of prior interactions. V7 and earlier were stateless. |
+| **Stateful** | A system that maintains information across interactions. V8 becomes stateful by keeping the chat history buffer. |
+| **`history_text`** | A formatted string of recent conversation turns that gets injected into the prompt so the model can "read" what was previously discussed. |
 
 ---
 

@@ -15,11 +15,34 @@
 
 > [!IMPORTANT]
 > **Why the changes were made (problem faced)**  
-> Previously, the bot was hardcoded to read a single `notes.txt` file. Real-world knowledge bases consist of dozens of files (HR docs, tech specs, employee profiles). Merging them into one file is tedious. Furthermore, when the bot answered in V4, there was no way to verify *where* it got that information, leading to a lack of auditability.
+> V4 was a single-file bot. Imagine a librarian who can only help you if all the world's knowledge is written into one big notebook. The moment you need information from a second book, they are helpless. That is the limitation V4 had — it was hardcoded to read a single `notes.txt` file.
+>
+> In the real world, a company's knowledge base isn't one file. It's dozens or even hundreds of files — an HR policy document, a technical specification, an employee profiles directory, a product manual. Having to manually merge all of these into one giant `notes.txt` every time you add new information is tedious, error-prone, and does not scale at all.
+>
+> The second problem was accountability. When V4 gave you an answer, you had no idea *where* that answer came from. Did it come from the HR policy? The technical spec? The employee profile? You couldn't tell. This is a serious issue in professional environments where you need to be able to fact-check and audit the AI's responses. A bot that can't show its sources is a bot you can't fully trust.
 
 > [!IMPORTANT]
 > **How the new version solves the problem**  
-> By automatically scanning a directory, adding new knowledge is as easy as dropping a new `.txt` file into the folder. By attaching the `filename` as metadata to every text chunk, the bot can explicitly cite its source, building user trust and allowing quick fact-checking.
+> V5 solves both problems in one elegant upgrade. Instead of opening a single hardcoded file, the bot now looks inside an entire folder called `knowledge_source/`. It uses Python's `os.listdir()` to get a list of every file in that directory, loops through each one, reads it, chunks it, and adds those chunks to the master knowledge pool.
+>
+> This means adding new knowledge to the bot is now as simple as dropping a new `.txt` file into the folder. No code changes required — just add the file and restart. The bot automatically discovers and ingests it on the next startup.
+>
+> To solve the accountability problem, we upgrade our chunk data structure. Previously, each chunk was just a plain string of text. Now, each chunk is stored as a **Python dictionary** — a container that holds multiple pieces of information together, like a labelled box. Each box has two compartments: `"text"` (the actual paragraph content) and `"source"` (the filename it came from). When the bot finds the best matching chunk and generates its answer, it can now look at the `"source"` field and tell the user exactly which file it read. This citation feature transforms the bot from a black box into a transparent, auditable tool.
+
+---
+
+## 📖 Terminologies
+
+| Term | What It Means |
+|---|---|
+| **`os` module** | A Python library that lets your code interact with the operating system — things like listing files in a folder, building file paths, and checking if a file exists. |
+| **`os.listdir()`** | A function that returns a list of all file and folder names inside a given directory. Used here to discover all `.txt` files automatically. |
+| **Dictionary (Python)** | A data structure that stores pairs of keys and values, like `{"source": "hr.txt", "text": "..."}`. It lets you attach labels to data so you can look it up by name later. |
+| **Metadata** | Extra information attached to a piece of data that describes it. The `"source"` filename is metadata — it describes *where* the text chunk came from without being part of the text itself. |
+| **Knowledge Base** | The collection of all documents and information that the RAG bot uses to answer questions. In our case, it's the `knowledge_source/` folder. |
+| **Citation** | Telling the user which specific document the answer came from. Like a bibliography in an essay — it shows your work and allows fact-checking. |
+| **`os.path.join()`** | A function that safely combines a folder path and a filename into a full file path that works on any operating system. |
+| **Auditability** | The ability to trace back where a result came from and verify its accuracy. Source citations make the bot auditable. |
 
 ---
 

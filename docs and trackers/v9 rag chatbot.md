@@ -16,11 +16,37 @@
 
 > [!IMPORTANT]
 > **Why the changes were made (problem faced)**  
-> The V7/V8 Bi-Encoder (which calculates distance between two independent vectors) is incredibly fast, but it can be easily fooled. It often surfaces chunks that share conceptual vocabulary but lack true relevance to the nuanced intent of the user's question. This results in the generative model receiving "muddy" or irrelevant context.
+> The V7/V8 semantic retrieval system uses a **Bi-Encoder** — a model that converts text into vectors independently. The question gets encoded into one vector, each chunk gets encoded into another vector, and then we measure the angle (cosine similarity) between them. This works remarkably well and is very fast. However, it has a subtle but important limitation.
+>
+> Because the question and the chunks are encoded *separately*, the model never actually reads them together. It converts each piece of text into a standalone "fingerprint" and then compares those fingerprints. Think of it like trying to judge if two puzzles are a match by looking at photos of each puzzle individually, rather than placing one on top of the other to see if the pieces fit. You might get most matches right, but there will be edge cases where the fingerprints look similar but the actual fit is poor.
+>
+> In practice this means the Bi-Encoder sometimes retrieves chunks that are *topically related* but not actually *the answer* to the specific question. For example, a question about *"the CEO's hire date"* might retrieve chunks about *"the CEO's salary"* and *"hiring policies"* — both are about the CEO and hiring, so the fingerprints look similar — but neither chunk contains the hire date. The result is that the Qwen model receives "muddy" context: relevant-ish but not precise, causing it to either give a wrong answer or say "Not found" when the correct answer actually does exist somewhere in the database.
 
 > [!IMPORTANT]
 > **How the new version solves the problem**  
-> A Cross-Encoder is fundamentally different from a Bi-Encoder. It feeds both the question AND the document text into the transformer *at the exact same time*, allowing the AI's attention mechanism to directly compare words between the two sentences. This yields a massively more accurate relevance score. Because Cross-Encoders are very slow, we use a "Two-Stage" pipeline: The fast Bi-Encoder filters 10,000 chunks down to 10 in milliseconds, and the slow Cross-Encoder meticulously sorts those 10 to find the perfect 3.
+> V9 introduces a smarter second opinion: the **Cross-Encoder**, and this changes the retrieval game completely.
+>
+> Here's the key insight. A Cross-Encoder doesn't encode the question and the document separately. Instead, it reads them *both at the same time* — concatenated together as a single input. Think of it like a judge reading both a question and a proposed answer simultaneously, rather than reading each one separately and then comparing notes. Because both texts are read together, the model's attention mechanism can directly compare specific words and phrases between the question and the chunk, asking *"Does this specific sentence in the chunk actually address this specific detail in the question?"* This deep cross-attention produces a fundamentally more accurate relevance score.
+>
+> The catch is that Cross-Encoders are slower. Because they process the question + document pair together, they can't pre-compute anything. Every query requires feeding all chunks through the model fresh. For a knowledge base with thousands of chunks, running a Cross-Encoder on all of them would take minutes per query — far too slow.
+>
+> V9 solves this with a brilliant **Two-Stage pipeline**. In Stage 1, the fast Bi-Encoder from V7 runs its lightning-fast cosine similarity search and retrieves the top 10 most likely relevant chunks (not 3, not 1 — 10, casting a wider net). This takes milliseconds. In Stage 2, only those 10 candidates are passed to the Cross-Encoder, which reads each question+chunk pair carefully and produces a precise relevance score for all 10. The top 3 scores win and are sent to the generative model. The result: near-perfect precision at an acceptable speed.
+
+---
+
+## 📖 Terminologies
+
+| Term | What It Means |
+|---|---|
+| **Two-Stage Retrieval** | A pipeline where a fast, approximate first stage narrows the candidates, and a slow, precise second stage picks the final winners. Balances speed and accuracy. |
+| **Bi-Encoder** | An embedding architecture that encodes the question and each document separately into vectors and compares them. Very fast but less precise because texts are never read together. |
+| **Cross-Encoder** | An AI model that reads the question and a document *together* as a single input. Much more accurate because it can directly compare words between the two, but slower. |
+| **`ms-marco-MiniLM-L-6-v2`** | The specific Cross-Encoder model used for reranking. Trained on the MS MARCO dataset — a large collection of real Bing search queries and relevant passages — making it excellent at judging passage relevance. |
+| **Reranking** | The process of taking an initial set of retrieved candidates and re-sorting them using a more accurate (and slower) model to get better final results. |
+| **Over-fetching** | Deliberately retrieving more results than you need (here, 10 instead of 3) in the first stage so the second stage has a large enough pool to pick the truly best results from. |
+| **Attention Mechanism** | The core mechanism inside transformer models that lets them focus on the most relevant words when processing a sequence. Cross-Encoders use this to compare words across the question and the document. |
+| **`cross_encoder.predict()`** | A function that takes a list of [question, chunk] pairs and returns a relevance score for each pair. Higher scores mean more relevant. |
+| **Muddy Context** | When the retrieved chunks are topically related but not precisely relevant to the question, leading to confused or incorrect model outputs. |
 
 ---
 

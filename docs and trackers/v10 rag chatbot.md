@@ -16,11 +16,40 @@
 
 > [!IMPORTANT]
 > **Why the changes were made (problem faced)**  
-> In all previous versions, the user had to wait for the model to finish the *entire* generation process (which could take 40-60 seconds on local hardware) before seeing any text. This "freeze" made the app feel slow and unresponsive, even though the model was working hard in the background.
+> In every version up to V9.1, the bot's generation step was a **blocking call**. This means when the code hit `model.generate(...)`, the entire Python program froze and waited. Nothing else could happen — no printing, no interaction, nothing — until the model had finished generating the very last token of the response. Only then would the full answer string appear all at once in the terminal.
+>
+> On local hardware without a GPU, generating 60–150 tokens with the Qwen model can take anywhere from 15 to 60 seconds. During this entire time, the terminal is completely blank and unresponsive. From the user's perspective, this is indistinguishable from the program crashing. They have no feedback, no progress indicator, no way to know if the bot is thinking hard or has frozen.
+>
+> This is a pure user experience problem. The computation time doesn't change — the bot is doing the same amount of work. But the *perceived* wait time is completely different when you're watching nothing versus watching something happen. Psychologically, staring at a blank screen for 30 seconds feels far longer than reading text that appears word by word for 30 seconds. The latter keeps you engaged; the former makes you anxious.
 
 > [!IMPORTANT]
 > **How the new version solves the problem**  
-> Streaming allows the bot to show its work in real-time. By using a background thread for the model and a `TextIteratorStreamer` in the main thread, we can catch every word the second it is produced. This "typewriter effect" makes the 40-second wait feel almost instantaneous because the user starts reading the answer within the first few seconds.
+> V10 implements **streaming output** — the bot prints each word the moment the model generates it, creating a typewriter effect that feels alive and immediate.
+>
+> To understand how this works, we need to understand a problem first: `model.generate()` is a blocking call that only returns when it's completely finished. We can't just "peek" at intermediate results. So we use a clever two-component solution.
+>
+> The first component is the `TextIteratorStreamer`. Think of it as a mailbox that sits between the model and the console. As the model generates each new token, instead of holding everything internally until the end, it drops each decoded word into this mailbox in real time. The mailbox acts as a queue — a line of words waiting to be picked up.
+>
+> The second component is Python's **threading**. We run `model.generate()` in a separate background thread — a parallel execution track that runs alongside our main program without blocking it. The main program, now free from waiting, enters a `for new_text in streamer:` loop that continuously checks the mailbox. Every time a new word arrives in the mailbox, the loop picks it up and immediately prints it to the console with `print(new_text, end="", flush=True)`. The `end=""` prevents a newline after each word, and `flush=True` forces Python to display it instantly without buffering.
+>
+> The result is magical from the user's perspective — the answer appears word by word, just like typing. Simultaneously, we accumulate the words into `full_response` so that after the generation is complete, we can save the full text to the chat history for the next turn.
+
+---
+
+## 📖 Terminologies
+
+| Term | What It Means |
+|---|---|
+| **Streaming Output** | Displaying the model's response word by word as it is generated, rather than waiting for the full response to be complete before showing anything. |
+| **Blocking Call** | A function call that freezes the program until it completes. `model.generate()` without streaming is a blocking call — nothing else happens while it runs. |
+| **`TextIteratorStreamer`** | A Hugging Face class that intercepts the model's token generation and makes each decoded word available in real time, one by one, like a live queue. |
+| **Thread** | An independent execution track that runs in parallel with the main program. Used here to run `model.generate()` in the background so the main thread can print tokens as they arrive. |
+| **`threading.Thread`** | A Python class that creates a new thread. We use it with `target=model.generate` to run generation in the background without blocking the main flow. |
+| **`flush=True`** | A parameter in Python's `print()` that forces the output buffer to be flushed immediately, ensuring the text appears on screen right away instead of being held in memory. |
+| **`end=""`** | A parameter in Python's `print()` that replaces the default newline character at the end of each print. Setting it to `""` means words print side by side on the same line. |
+| **Typewriter Effect** | The visual effect of text appearing character by character or word by word, as if being typed in real time. Achieved here by streaming tokens directly to the console. |
+| **Token Queue** | The internal buffer inside `TextIteratorStreamer` where newly generated tokens wait to be read and printed by the main thread loop. |
+| **`full_response`** | A string that accumulates all streamed tokens during generation. After the loop ends, it contains the complete response, which is then saved to chat history. |
 
 ---
 

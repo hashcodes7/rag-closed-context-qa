@@ -16,11 +16,40 @@
 
 > [!IMPORTANT]
 > **Why the changes were made (problem faced)**  
-> Up until now, every time you launched the script, the bot had to read all `.txt` files, re-slice them into chunks, and re-calculate all the mathematical vector embeddings from scratch. For a small knowledge base, this took a few seconds, but for hundreds of documents, this startup lag becomes a major bottleneck.
+> By V10, the bot was feature-rich and working well during a session. But there was one stubborn performance problem that happened at the very beginning of every single run: the startup time.
+>
+> Every time you launched `python app.py`, the bot had to go through a slow and expensive initialization sequence. First it loaded the tokenizer and the Qwen language model (slow, takes 30–60 seconds). Then it loaded the embedding model. Then, the big one: it had to read every `.txt` file from disk, chunk all of them, and then run every single chunk through the embedding model to generate its vector. For a knowledge base with 5 files and ~200 chunks total, this embedding step alone could take 10–30 seconds and consume significant CPU.
+>
+> The worst part? Nothing about the knowledge base had changed between runs. The same files, the same chunks, the same vectors — all being recomputed from scratch every single time. It's like if every morning when you turned on your car, the engine had to be completely rebuilt from parts before you could drive. The work had already been done yesterday. There is no reason to do it again.
+>
+> As the knowledge base scales up to hundreds of files and tens of thousands of chunks, this startup tax becomes completely unbearable. We needed a way to remember the work we had already done.
 
 > [!IMPORTANT]
 > **How the new version solves the problem**  
-> Vector Caching turns the bot's temporary memory into permanent storage. By saving the high-cost embeddings to a `.pt` file (PyTorch tensor format), the bot only has to "think" once. On every subsequent launch, it bypasses the heavy lifting and loads the pre-computed intelligence in milliseconds.
+> V11 introduces **Persistent Vector Caching** — the bot saves its computed knowledge to disk after the first run, and loads it instantly on every subsequent run.
+>
+> Here is the core idea. Vectors are just numbers. Lists of numbers can be saved to a file, just like saving a Word document or a photo. After the bot generates all the embeddings for the first time, we take the two most important data structures — the `chunks` list (which holds the text and source metadata) and the `chunk_embeddings` tensor (which holds all the vectors) — and pack them together into a single dictionary. We then use `torch.save()` to serialize this dictionary into a binary file called `vector_cache.pt`. Think of `.pt` as a "PyTorch snapshot file."
+>
+> On the very next startup, the bot checks: *"Does `vector_cache.pt` exist?"* using `os.path.exists()`. If yes — wonderful! We skip the entire expensive embedding process and instead use `torch.load()` to read the snapshot back into memory directly. Loading a pre-computed binary file from disk is incredibly fast — often under 0.5 seconds, compared to the 30+ seconds it took to compute everything from scratch.
+>
+> The catch is cache invalidation. If you add new files to `knowledge_source/` or change the chunking logic, the cached vectors are now outdated — they don't include the new content. In that case, you must delete `vector_cache.pt` manually to force a fresh re-index on the next startup. V11 documents this clearly as an important operational rule.
+
+---
+
+## 📖 Terminologies
+
+| Term | What It Means |
+|---|---|
+| **Vector Caching** | Saving pre-computed embedding vectors to disk so they don't need to be recalculated every time the program starts. A major performance optimization. |
+| **`torch.save()`** | A PyTorch function that serializes a Python object (like a dictionary containing tensors and lists) into a binary `.pt` file on disk. |
+| **`torch.load()`** | A PyTorch function that reads a `.pt` binary file from disk and deserializes it back into the original Python object in memory. |
+| **Serialization** | The process of converting a complex in-memory data structure (like a tensor or a list of dictionaries) into a sequence of bytes that can be saved to a file. |
+| **Deserialization** | The reverse of serialization — reading bytes from a file and reconstructing the original in-memory data structure. |
+| **`vector_cache.pt`** | The filename of our cache file. The `.pt` extension is a convention for PyTorch-saved files. It stores both the chunk metadata and the embedding vectors. |
+| **Cache Hit** | When the cache file exists and is loaded successfully instead of recomputing from scratch. A cache hit is fast. |
+| **Cache Miss** | When the cache file does not exist, forcing a full re-computation. A cache miss is slow but only happens once (on first run or after deletion). |
+| **Cache Invalidation** | The process of deleting an old cache file when the underlying data has changed (e.g., new files added to the knowledge base). Without this, the bot would serve stale, outdated results. |
+| **`os.path.exists()`** | A Python function that checks whether a given file path exists on disk. Returns `True` if the file is found, `False` otherwise. |
 
 ---
 

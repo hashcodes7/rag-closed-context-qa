@@ -16,15 +16,39 @@
 
 > [!IMPORTANT]
 > **Why the changes were made (problem faced)**  
-> The V11 word-count splitter was separator-blind. A chunk boundary could fall in the middle of a sentence like *"The company was founded in"* — cutting before the year. This clipped fact then gets embedded and retrieved, injecting incomplete context into the LLM prompt and causing hallucinations or "Not found." responses for questions that should be answerable.
+> V11's chunking function used a simple word-count sliding window. Every 250 words, the window moved forward by 170 words (leaving an 80-word overlap). This approach is completely indifferent to language structure — it splits text purely based on counting words, with no regard for where sentences, paragraphs, or ideas naturally begin and end.
+>
+> The consequences of this can be subtle but damaging. Imagine a knowledge base entry that reads: *"The annual performance review is held in December. Employees who receive a rating of 4 or above are eligible for a bonus of 15% of their annual salary."* Now suppose the word count boundary falls right in the middle of that second sentence, creating one chunk that ends with *"Employees who receive a rating of 4 or above are eligible for a bonus of 15%"* and the next chunk that starts with *"of their annual salary."* The first chunk is now an incomplete fact — it mentions 15% but not 15% of what. The embedding model encodes this incomplete sentence and assigns it a vector. When retrieved, the LLM reads *"15%"* without context, potentially hallucinating or saying "Not found."
+>
+> This is called **fact-clipping** — literally cutting a fact in half by slicing text at an arbitrary position. It's like opening a book to a random page, cutting the page down the middle with scissors, and giving someone only the left half to read. They might get some useful information, but they might also get half a sentence that means nothing on its own. As knowledge bases grow larger and more complex, fact-clipping becomes an increasingly frequent problem that degrades retrieval quality silently.
 
 > [!IMPORTANT]
 > **How the new version solves the problem**  
-> The Recursive Character Splitter works top-down: it first tries to divide on `\n\n` (paragraph breaks), keeping entire paragraphs together. Only if a paragraph is still too large does it fall back to `\n`, then `. ` (sentence endings), and finally individual word spaces. This ensures every chunk is a semantically complete unit — a full sentence or paragraph — maximizing retrieval accuracy.
+> V12 replaces the word-count chunker with a **Recursive Character Splitter** — a smarter algorithm that respects the natural structure of language.
+>
+> The core philosophy shift is this: instead of asking *"how many words have I counted?"*, we ask *"where is the most natural place to split this text?"* Natural text has a built-in hierarchy of boundaries from broadest to finest: paragraphs → lines → sentences → words. We exploit this hierarchy with a recursive approach.
+>
+> Here is how it works step by step. We define a list of separators in order of preference: `["\n\n", "\n", ". ", " "]`. The algorithm tries the broadest separator first — double newline (`\n\n`), which marks paragraph breaks. It splits the document on these paragraph breaks and tries to accumulate paragraphs into chunks of up to 1,000 characters. If two paragraphs together fit within 1,000 characters, they stay together. If one paragraph alone is larger than 1,000 characters, the algorithm doesn't give up — it tries the next finer separator (`\n` for line breaks) and repeats the process on that paragraph. This continues recursively down through sentence boundaries (`". "`) and finally word boundaries (`" "`).
+>
+> The beautiful result is that chunk boundaries almost always fall at a paragraph break or a sentence period — never in the middle of a clause. A fact like *"eligible for a bonus of 15% of their annual salary"* will always appear complete in a single chunk because the algorithm will find a sentence boundary on either side of it before resorting to word splitting. The embeddings become more accurate, the retrieved context is cleaner, and the LLM's answers improve accordingly.
+>
+> We also move from word-level overlap (80 words) to character-level overlap (200 characters), which is more precise and consistent regardless of word length.
 
-> [!CAUTION]
-> **Cache Invalidation Required**  
-> Because the chunking logic has changed, the existing `vector_cache.pt` (built with V11's word splitter) is stale. **Delete `vector_cache.pt` before running V12** to force a clean re-index. V12 will print a warning on startup if it detects an old cache file.
+---
+
+## 📖 Terminologies
+
+| Term | What It Means |
+|---|---|
+| **Recursive Character Splitter** | A chunking algorithm that tries to split text using a hierarchy of separators (paragraph → line → sentence → word), recursively falling back to finer splits only when needed. |
+| **Separator Hierarchy** | An ordered list of text boundaries tried from broadest to finest. For us: `\n\n` (paragraph) → `\n` (line) → `". "` (sentence) → `" "` (word). |
+| **Fact-Clipping** | The problem where a chunk boundary falls in the middle of an important fact, making that fact incomplete and potentially useless for retrieval. |
+| **`\n\n` (Double Newline)** | Two consecutive newline characters, typically indicating a paragraph break in plain text files. The broadest natural boundary in our separator hierarchy. |
+| **Character-Level Chunking** | Measuring chunk size in characters rather than words. More precise because character counts are consistent regardless of word length. |
+| **`chunk_size=1000`** | The maximum number of characters allowed in a single chunk. Roughly equivalent to 150–200 words — larger than before, giving the LLM more context per chunk. |
+| **`overlap=200`** | The number of characters from the end of the previous chunk that get prepended to the start of the next chunk. Ensures context continuity at boundaries. |
+| **Recursion** | A programming technique where a function calls itself with a simpler version of the problem. Used here to apply progressively finer separators until the text fits within the chunk size. |
+| **Buffer-and-Flush** | The core loop pattern: accumulate text in a buffer until adding more would exceed the chunk size, then flush (emit) the buffer as a complete chunk and start a new one. |
 
 ---
 

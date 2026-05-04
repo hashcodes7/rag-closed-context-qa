@@ -49,8 +49,8 @@
 * [x] Ensure sentence-aware boundaries to prevent fact-clipping
 
 ## Step 13 — Vector Indexing (Performance)
-* [ ] Integrate **FAISS** for indexed search
-* [ ] Move from linear scan to HNSW (Hierarchical Navigable Small World) index
+* [x] Integrate **FAISS** for indexed search
+* [x] Move from linear scan to HNSW (Hierarchical Navigable Small World) index
 
 ## Step 14 — Model Quantization (Performance)
 * [ ] Implement 4-bit/8-bit loading via `bitsandbytes`
@@ -77,13 +77,13 @@
 # 📝 Handover Notes for Future Agents
 
 ### Current System State:
-*   **Version**: `V12`
+*   **Version**: `V13`
 *   **Model**: `Qwen/Qwen2.5-0.5B-Instruct`
 *   **Prompting**: Must use `tokenizer.apply_chat_template` (ChatML) to prevent the 0.5B model from hallucinating.
 *   **Chunking**: `recursive_chunk_text()` — separator hierarchy `\n\n` → `\n` → `". "` → `" "`, `chunk_size=1000 chars`, `overlap=200 chars`.
-*   **Retrieval**: Two-stage (Bi-Encoder `all-MiniLM-L6-v2` → Cross-Encoder `ms-marco-MiniLM-L-6-v2`).
+*   **Retrieval**: Two-stage — Stage 1: `faiss.IndexHNSWFlat` (M=32, efSearch=64) ANN search; Stage 2: Cross-Encoder `ms-marco-MiniLM-L-6-v2` reranking.
 *   **Streaming**: Handled via `threading.Thread` and `TextIteratorStreamer`.
-*   **Caching**: Uses `vector_cache.pt`. If you change chunking logic, you **must delete this file** to force a re-index.
+*   **Caching**: **Dual-file** — `vector_cache.pt` (chunk metadata) + `faiss_index.bin` (HNSW index). Both must exist for a cache hit. Delete both to force re-index.
 
 ### Key Files:
 *   `app.py`: The main entry point and engine.

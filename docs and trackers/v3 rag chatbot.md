@@ -15,11 +15,38 @@
 
 > [!IMPORTANT]
 > **Why the changes were made (problem faced)**  
-> In V2, the entire `notes.txt` file was shoved into the model's prompt. While this works for tiny notes, large documents will easily exceed the model's token context window, causing memory crashes or degraded, confused answers.
+> Imagine you are a student sitting for an exam, and your teacher hands you an enormous 500-page textbook and says: *"Your answer to this question must come from somewhere in here."* You'd be overwhelmed, right? That is exactly what we were doing to the AI model in V2.
+>
+> In V2, the **entire** `notes.txt` file was stuffed directly into the model's prompt as raw text before every single question. While this feels intuitive — just give the AI everything and let it figure it out — it runs into a very real hardware limitation called the **context window**.
+>
+> A language model's context window is like its working memory. It can only hold and process a certain number of "tokens" (roughly, pieces of words) at one time. The Qwen 0.5B model we are using has a relatively small context window. When you throw a very large document at it, two terrible things happen. First, the model might simply crash or throw an out-of-memory error because the text is too long to fit. Second, even if it doesn't crash, the model gets genuinely confused — it has to "pay attention" to hundreds of paragraphs at once, and important information gets diluted in the noise. The answer quality drops significantly because the model struggles to find the relevant needle in that massive haystack.
+>
+> Think of it like asking someone to remember everything on every page of a book you just read out loud to them, then asking one small question. Even a human would struggle.
 
 > [!IMPORTANT]
 > **How the new version solves the problem**  
-> By splitting the document into smaller chunks and retrieving only the highest-scoring chunk based on keyword matches, the prompt stays small, hyper-focused, and well within the model's memory limits. This is the foundational concept of real-world RAG systems.
+> V3 introduces the most fundamental idea in all of RAG: **don't give the model everything — give it only what it needs.**
+>
+> Here's the approach, step by step in plain English. First, we take the big document and cut it into many small, bite-sized pieces called **chunks**. Think of it like cutting a long pizza into individual slices. Each slice is a paragraph. We then look at every single slice and ask: *"How many words in this paragraph match the words in the user's question?"* We count those matching words and give each paragraph a score. The paragraph with the highest score — the one that shares the most vocabulary with the question — wins. We call this the `best_chunk`.
+>
+> Now here's the magic: instead of feeding the AI the whole pizza box, we hand it only that one winning slice. The prompt becomes tiny, laser-focused, and completely within the model's memory limits. The AI doesn't have to search through irrelevant paragraphs about something unrelated — it reads one small, relevant piece of text and gives a sharp, direct answer.
+>
+> This technique of splitting → scoring → retrieving is the **core concept of Retrieval-Augmented Generation (RAG)**, and it forms the foundation that every future version of this bot will build upon.
+
+---
+
+## 📖 Terminologies
+
+| Term | What It Means |
+|---|---|
+| **RAG (Retrieval-Augmented Generation)** | A technique where the AI first *retrieves* relevant information from a database, then *generates* an answer based only on that retrieved information. It prevents the model from making things up. |
+| **Context Window** | The maximum amount of text a language model can read and process at one time. Think of it as the model's short-term memory — it can only hold so much before it starts forgetting or getting confused. |
+| **Chunk** | A small, self-contained piece of a larger document. Instead of feeding the whole document, we break it into chunks so we can pick and choose only the most relevant one. |
+| **Keyword Overlap** | A simple scoring method: count how many words from the user's question appear in a given chunk. The chunk with the most matching words gets the highest score. |
+| **Prompt** | The full text input that gets sent to the AI model. It includes instructions, context, and the question. The model reads the prompt and generates its answer from it. |
+| **Tokenizer** | A tool that converts human-readable text into numbers (tokens) that the AI model can process. It also converts the model's number output back into readable text. |
+| **Token** | A small unit of text — roughly a word or part of a word. Models count their memory usage in tokens, not characters or words. |
+| **`best_chunk`** | The single paragraph from the document that scored highest based on keyword overlap with the user's question. Only this chunk gets passed to the AI. |
 
 ---
 
