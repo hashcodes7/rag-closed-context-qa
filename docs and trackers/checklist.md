@@ -57,8 +57,8 @@
 * [x] Optimize VRAM/RAM usage for faster generation
 
 ## Step 15 — Hybrid Search (Performance)
-* [ ] Combine Semantic Search with Keyword Search (BM25)
-* [ ] Implement a reciprocal rank fusion (RRF) for scoring
+* [x] Combine Semantic Search with Keyword Search (BM25)
+* [x] Implement a reciprocal rank fusion (RRF) for scoring
 
 ## Step 16 — Streamlit Web UI (Interface)
 * [ ] Create basic `streamlit` chat dashboard

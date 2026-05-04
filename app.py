@@ -5,12 +5,13 @@ import faiss
 import numpy as np
 import os
 import time
+import math
 from threading import Thread
 
 # =====================================================
-# 🧠 RAGBOT V14
-# Level 8 — Model Quantization (Performance)
-# 4-bit/8-bit loading via bitsandbytes to save VRAM
+# 🧠 RAGBOT V15
+# Level 9 — Hybrid Search (Performance)
+# Semantic + BM25 Keyword Search combined with RRF
 # =====================================================
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
@@ -20,11 +21,14 @@ cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 # -----------------------------------------------------
 # 🟢 CONFIGURATION
 # -----------------------------------------------------
+# 🆕 NEW IN V15: Hybrid Search toggle and RRF constant
+USE_HYBRID = True
+RRF_K = 60
+
 # 🆕 NEW IN V14: Choose quantization mode ("4bit", "8bit", "full")
-# "4bit" is recommended for lowest VRAM usage with minimal quality loss.
 QUANTIZATION_MODE = "4bit"
 
-print(f"🔄 RAGBOT V14 Running (Mode: {QUANTIZATION_MODE})........")
+print(f"🔄 RAGBOT V15 Running (Hybrid: {USE_HYBRID}, Mode: {QUANTIZATION_MODE})........")
 
 print("🔄 Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -70,6 +74,50 @@ print("🔄 Loading reranker model (Cross-Encoder)...")
 cross_encoder = CrossEncoder(cross_encoder_model_name)
 print("✅ Reranker model loaded")
 
+
+# -----------------------------------------------------
+# 🟢 UTILITIES
+# -----------------------------------------------------
+
+# 🆕 NEW IN V15: Simple BM25 implementation for keyword search
+class SimpleBM25:
+    def __init__(self, corpus, k1=1.5, b=0.75):
+        self.k1 = k1
+        self.b = b
+        self.corpus_size = len(corpus)
+        self.avgdl = sum(len(doc) for doc in corpus) / self.corpus_size
+        self.doc_freqs = []
+        self.idf = {}
+        self.doc_len = []
+        
+        nd = {} # word -> number of docs containing word
+        for doc in corpus:
+            self.doc_len.append(len(doc))
+            frequencies = {}
+            for word in doc:
+                frequencies[word] = frequencies.get(word, 0) + 1
+            self.doc_freqs.append(frequencies)
+            for word in frequencies:
+                nd[word] = nd.get(word, 0) + 1
+        
+        for word, freq in nd.items():
+            # Standard BM25 IDF formula
+            self.idf[word] = math.log((self.corpus_size - freq + 0.5) / (freq + 0.5) + 1)
+
+    def get_scores(self, query):
+        scores = [0.0] * self.corpus_size
+        for word in query:
+            if word not in self.idf: continue
+            idf = self.idf[word]
+            for i in range(self.corpus_size):
+                fi = self.doc_freqs[i].get(word, 0)
+                # BM25 score formula for this term
+                scores[i] += idf * (fi * (self.k1 + 1)) / (fi + self.k1 * (1 - self.b + self.b * self.doc_len[i] / self.avgdl))
+        return scores
+
+def tokenize(text):
+    # Simple whitespace/lowercase tokenization
+    return text.lower().replace(".", " ").replace(",", " ").replace("?", " ").split()
 
 # -----------------------------------------------------
 # 🟢 CHUNKING
@@ -150,6 +198,22 @@ CACHE_FILE = "vector_cache.pt"       # stores chunk metadata (source, text)
 FAISS_INDEX_FILE = "faiss_index.bin" # stores the FAISS HNSW index
 chunks = []
 faiss_index = None
+bm25_index = None
+
+# 🆕 NEW IN V15: Reciprocal Rank Fusion (RRF) implementation
+def reciprocal_rank_fusion(results_list, k=60):
+    """
+    Combines multiple ranked lists into one using RRF.
+    results_list: list of lists containing chunk indices.
+    """
+    fused_scores = {}
+    for results in results_list:
+        for rank, idx in enumerate(results):
+            fused_scores[idx] = fused_scores.get(idx, 0) + 1 / (k + rank)
+    
+    # Sort by fused score descending
+    sorted_indices = sorted(fused_scores.keys(), key=lambda x: fused_scores[x], reverse=True)
+    return sorted_indices
 
 # 🆕 NEW IN V13: Both cache files must exist together for a valid cache hit
 if os.path.exists(CACHE_FILE) and os.path.exists(FAISS_INDEX_FILE):
@@ -161,6 +225,12 @@ if os.path.exists(CACHE_FILE) and os.path.exists(FAISS_INDEX_FILE):
     print(f"⚡ Loading FAISS index from {FAISS_INDEX_FILE}...")
     faiss_index = faiss.read_index(FAISS_INDEX_FILE)
     print(f"✅ FAISS index loaded in {time.time() - start:.2f}s ({faiss_index.ntotal} vectors)")
+
+    # 🆕 NEW IN V15: Initialize BM25 index from loaded chunks
+    print("⚡ Initializing BM25 index...")
+    tokenized_corpus = [tokenize(c["text"]) for c in chunks]
+    bm25_index = SimpleBM25(tokenized_corpus)
+    print("✅ BM25 index ready")
 else:
     print("\n📂 No cache found. Processing knowledge base from scratch...")
 
@@ -211,32 +281,40 @@ else:
     faiss.write_index(faiss_index, FAISS_INDEX_FILE)
     print("✅ Both cache files saved successfully")
 
+    # 🆕 NEW IN V15: Initialize BM25 index after processing from scratch
+    print("🏗️ Initializing BM25 index...")
+    tokenized_corpus = [tokenize(c["text"]) for c in chunks]
+    bm25_index = SimpleBM25(tokenized_corpus)
+    print("✅ BM25 index ready")
+
 
 # -----------------------------------------------------
 # 🟠 SEMANTIC RETRIEVAL (V13 FAISS HNSW + Cross-Encoder)
 # -----------------------------------------------------
 def retrieve_top_k(question, k=3):
-    print("\n🔍 Stage 1: FAISS HNSW Search (Bi-Encoder)...")
-    start = time.time()
-
-    # 🆕 NEW IN V13: Encode query as float32 numpy array and normalize
+    # Stage 1a — Semantic Search (FAISS HNSW)
+    semantic_start = time.time()
     query_vec = embedder.encode([question], convert_to_numpy=True).astype("float32")
-    faiss.normalize_L2(query_vec)  # Must match how the index was built
-
-    # Set query-time accuracy (higher = more accurate, slower)
+    faiss.normalize_L2(query_vec)
     faiss_index.hnsw.efSearch = 64
+    s_dist, s_indices = faiss_index.search(query_vec, k=min(20, faiss_index.ntotal))
+    semantic_ids = [int(idx) for idx in s_indices[0] if idx != -1]
+    print(f"✅ Stage 1a (Semantic) found {len(semantic_ids)} chunks in {time.time() - semantic_start:.4f}s")
 
-    # Search the HNSW index — returns (distances, indices) as 2D arrays
-    distances, indices = faiss_index.search(query_vec, k=min(10, faiss_index.ntotal))
+    # 🆕 NEW IN V15: Stage 1b — Keyword Search (BM25)
+    keyword_start = time.time()
+    tokenized_query = tokenize(question)
+    bm25_scores = bm25_index.get_scores(tokenized_query)
+    # Get top 20 indices based on BM25 scores
+    keyword_ids = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:20]
+    print(f"✅ Stage 1b (Keyword) found {len(keyword_ids)} chunks in {time.time() - keyword_start:.4f}s")
 
-    initial_results = []
-    for dist, idx in zip(distances[0], indices[0]):
-        if idx == -1:  # FAISS pads with -1 when k > ntotal
-            continue
-        item = chunks[idx].copy()
-        initial_results.append(item)
-
-    print(f"✅ Stage 1 retrieved {len(initial_results)} broad chunks in {time.time() - start:.2f}s")
+    # 🆕 NEW IN V15: Hybrid Fusion using RRF
+    fusion_start = time.time()
+    fused_ids = reciprocal_rank_fusion([semantic_ids, keyword_ids], k=RRF_K)
+    # Take top 10 for reranking
+    initial_results = [chunks[idx].copy() for idx in fused_ids[:10]]
+    print(f"✅ Stage 1c (RRF Fusion) merged into {len(initial_results)} candidates in {time.time() - fusion_start:.4f}s")
 
     # Stage 2 — Cross-Encoder Reranking (unchanged from V9)
     print("🎯 Stage 2: Cross-Encoder Reranking...")
@@ -263,7 +341,7 @@ def retrieve_top_k(question, k=3):
 # 🟢 CHAT LOOP
 # -----------------------------------------------------
 
-print(f"\n🤖 RAGBOT V14 Ready! (Mode: {QUANTIZATION_MODE}) Type 'quit' to exit.\n")
+print(f"\n🤖 RAGBOT V15 Ready! (Hybrid: {USE_HYBRID}, Mode: {QUANTIZATION_MODE}) Type 'quit' to exit.\n")
 
 # 🆕 NEW IN V8: Initialize rolling chat history buffer
 chat_history = []
