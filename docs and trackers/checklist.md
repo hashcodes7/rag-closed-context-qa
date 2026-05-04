@@ -53,8 +53,8 @@
 * [x] Move from linear scan to HNSW (Hierarchical Navigable Small World) index
 
 ## Step 14 — Model Quantization (Performance)
-* [ ] Implement 4-bit/8-bit loading via `bitsandbytes`
-* [ ] Optimize VRAM/RAM usage for faster generation
+* [x] Implement 4-bit/8-bit loading via `bitsandbytes`
+* [x] Optimize VRAM/RAM usage for faster generation
 
 ## Step 15 — Hybrid Search (Performance)
 * [ ] Combine Semantic Search with Keyword Search (BM25)

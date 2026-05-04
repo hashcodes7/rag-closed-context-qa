@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer
+from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer, BitsAndBytesConfig
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import torch
 import faiss
@@ -8,9 +8,9 @@ import time
 from threading import Thread
 
 # =====================================================
-# 🧠 RAGBOT V13
-# Level 7 — FAISS HNSW Vector Indexing
-# Sub-linear ANN search replacing linear cosine scan
+# 🧠 RAGBOT V14
+# Level 8 — Model Quantization (Performance)
+# 4-bit/8-bit loading via bitsandbytes to save VRAM
 # =====================================================
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
@@ -18,21 +18,48 @@ embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
 cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 # -----------------------------------------------------
-# 🟢 LOADING PHASE
+# 🟢 CONFIGURATION
 # -----------------------------------------------------
+# 🆕 NEW IN V14: Choose quantization mode ("4bit", "8bit", "full")
+# "4bit" is recommended for lowest VRAM usage with minimal quality loss.
+QUANTIZATION_MODE = "4bit"
 
-print("🔄 RAGBOT V13 Running........")
+print(f"🔄 RAGBOT V14 Running (Mode: {QUANTIZATION_MODE})........")
 
 print("🔄 Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 print("✅ Tokenizer loaded")
 
-print("🔄 Loading Qwen model...")
-model = AutoModelForCausalLM.from_pretrained(
-    model_name,
-    low_cpu_mem_usage=True
-)
-print("✅ Qwen model loaded")
+print(f"🔄 Loading Qwen model ({QUANTIZATION_MODE})...")
+
+# 🆕 NEW IN V14: Configure BitsAndBytes for quantization
+quantization_config = None
+if QUANTIZATION_MODE == "4bit":
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+    )
+elif QUANTIZATION_MODE == "8bit":
+    quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+
+try:
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        quantization_config=quantization_config,
+        low_cpu_mem_usage=True,
+        device_map="auto" if quantization_config else None
+    )
+    print(f"✅ Qwen model loaded in {QUANTIZATION_MODE} mode")
+except Exception as e:
+    print(f"⚠️ Quantization failed: {e}")
+    print("🔄 Falling back to Full Precision loading...")
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        low_cpu_mem_usage=True
+    )
+    print("✅ Qwen model loaded (Full Precision)")
 
 print("🔄 Loading embedding model (Bi-Encoder)...")
 embedder = SentenceTransformer(embed_model_name)
@@ -236,7 +263,7 @@ def retrieve_top_k(question, k=3):
 # 🟢 CHAT LOOP
 # -----------------------------------------------------
 
-print("\n🤖 RAGBOT V13 Ready! Type 'quit' to exit.\n")
+print(f"\n🤖 RAGBOT V14 Ready! (Mode: {QUANTIZATION_MODE}) Type 'quit' to exit.\n")
 
 # 🆕 NEW IN V8: Initialize rolling chat history buffer
 chat_history = []
