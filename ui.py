@@ -51,6 +51,8 @@ with st.sidebar:
         "Qwen/Qwen2.5-1.5B-Instruct",
         "meta-llama/Llama-3.2-1B-Instruct",
         "meta-llama/Llama-3.2-3B-Instruct",
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "microsoft/phi-2",
         "HuggingFaceTB/SmolLM2-135M-Instruct",
         "Custom Model..."
     ]

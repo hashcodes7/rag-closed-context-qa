@@ -10,7 +10,7 @@
 > **Changes from Last Version [v16] to Current Version [v17]**  
 > *   **Sidebar File Manager**: Added `st.file_uploader` to support real-time document ingestion.
 > *   **Dynamic Deletion**: Integrated a file list with delete functionality (🗑️) directly in the sidebar.
-> *   **Multi-Model Support**: Added a dropdown menu to switch between famous AI models (Qwen, Llama, SmolLM) and a text box for custom Hugging Face model IDs.
+> *   **Multi-Model Support**: Added a dropdown menu to switch between famous AI models (Qwen, Llama, TinyLlama, Phi-2, SmolLM) and a text box for custom Hugging Face model IDs.
 > *   **Dynamic Reloading**: Implemented logic to purge VRAM and reload the entire engine when switching models.
 > *   **Re-indexing Logic**: Implemented `st.session_state` tracking to detect knowledge base changes and prompt for a manual re-index (force-clearing old FAISS/Vector caches).
 > *   **Full Source Viewer**: Replaced static source lists with an interactive `st.selectbox` inside chat bubbles, allowing users to read the **complete text** of any source file cited by the bot.
