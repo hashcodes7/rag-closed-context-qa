@@ -61,8 +61,8 @@
 * [x] Implement a reciprocal rank fusion (RRF) for scoring
 
 ## Step 16 — Streamlit Web UI (Interface)
-* [ ] Create basic `streamlit` chat dashboard
-* [ ] Move terminal telemetry to visual charts
+* [x] Create basic `streamlit` chat dashboard
+* [x] Move terminal telemetry to visual charts
 
 ## Step 17 — Interactive UI Features (Interface)
 * [ ] Add document upload management via sidebar
