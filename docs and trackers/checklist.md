@@ -65,8 +65,8 @@
 * [x] Move terminal telemetry to visual charts
 
 ## Step 17 — Interactive UI Features (Interface)
-* [ ] Add document upload management via sidebar
-* [ ] Implement "Click-to-Source" viewing in the browser
+* [x] Add document upload management via sidebar
+* [x] Implement "Click-to-Source" viewing in the browser
 
 ## Step 18 — Advanced File Support (Expansion)
 * [ ] Integrate `PyMuPDF` for `.pdf` ingestion

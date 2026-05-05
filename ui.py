@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import os
 from core import RAGEngine
 
 # =====================================================
@@ -45,13 +46,43 @@ with st.sidebar:
     use_hybrid = st.toggle("Enable Hybrid Search (BM25)", value=True)
     
     st.divider()
-    if st.button("🔄 Force Reload Knowledge Base"):
+    st.subheader("📂 Knowledge Manager")
+    
+    # File Uploader
+    uploaded_files = st.file_uploader("Upload .txt files", type=["txt"], accept_multiple_files=True)
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            save_path = os.path.join("knowledge_source", uploaded_file.name)
+            if not os.path.exists(save_path):
+                with open(save_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                st.success(f"Uploaded: {uploaded_file.name}")
+                st.session_state["reindex_required"] = True
+
+    # File List & Deletion
+    st.write("Current Files:")
+    if os.path.exists("knowledge_source"):
+        for f in os.listdir("knowledge_source"):
+            if f.endswith(".txt"):
+                col_file, col_del = st.columns([0.8, 0.2])
+                col_file.caption(f"📄 {f}")
+                if col_del.button("🗑️", key=f"del_{f}"):
+                    os.remove(os.path.join("knowledge_source", f))
+                    st.session_state["reindex_required"] = True
+                    st.rerun()
+    
+    st.divider()
+    if st.button("🔄 Force Engine Restart"):
         st.cache_resource.clear()
+        st.session_state.clear()
         st.rerun()
 
-    st.info("SourceIQ V16 - Streamlit Edition")
+    st.info("SourceIQ V17 - Interactive Edition")
 
 # --- INITIALIZE MODELS & DATA ---
+if "reindex_required" not in st.session_state:
+    st.session_state["reindex_required"] = False
+
 if "models_loaded" not in st.session_state:
     with st.status("🚀 Initializing Engine...", expanded=True) as status:
         st.write("🔄 Loading AI Models...")
@@ -60,6 +91,16 @@ if "models_loaded" not in st.session_state:
         engine.process_knowledge_base()
         status.update(label="✅ Engine Ready!", state="complete", expanded=False)
     st.session_state["models_loaded"] = True
+
+# --- RE-INDEX TRIGGER ---
+if st.session_state["reindex_required"]:
+    st.warning("⚠️ Knowledge base has changed. Re-index required to apply changes.")
+    if st.button("🛠️ Re-index Knowledge Base Now"):
+        with st.status("🏗️ Re-indexing...", expanded=True) as status:
+            engine.process_knowledge_base(force_reindex=True)
+            st.session_state["reindex_required"] = False
+            status.update(label="✅ Re-indexed Successfully!", state="complete", expanded=False)
+            st.rerun()
 
 # --- SESSION STATE FOR CHAT ---
 if "messages" not in st.session_state:
@@ -73,9 +114,16 @@ st.caption("v16 — FAISS HNSW | Hybrid Search | bitsandbytes Quantization")
 for msg in st.session_state["messages"]:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        if "sources" in msg:
-            with st.expander("📚 Sources"):
-                st.write(", ".join(msg["sources"]))
+        if "sources" in msg and msg["sources"]:
+            with st.expander("📚 View Full Sources"):
+                selected_source = st.selectbox(f"Select a source to view ({msg['role']}_{st.session_state['messages'].index(msg)})", msg["sources"], key=f"src_{st.session_state['messages'].index(msg)}")
+                if selected_source:
+                    source_path = os.path.join("knowledge_source", selected_source)
+                    if os.path.exists(source_path):
+                        with open(source_path, "r", encoding="utf-8") as f:
+                            st.text_area("Full Content", f.read(), height=200)
+                    else:
+                        st.error("Source file no longer exists.")
 
 # --- CHAT INPUT ---
 if prompt := st.chat_input("Ask about your knowledge base..."):
@@ -150,5 +198,13 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
         })
         
         if sources:
-            with st.expander("📚 Sources"):
-                st.write(", ".join(list(set(sources))))
+            with st.expander("📚 View Full Sources"):
+                unique_srcs = list(set(sources))
+                selected_source = st.selectbox("Select a source to view", unique_srcs, key=f"last_src_{len(st.session_state['messages'])}")
+                if selected_source:
+                    source_path = os.path.join("knowledge_source", selected_source)
+                    if os.path.exists(source_path):
+                        with open(source_path, "r", encoding="utf-8") as f:
+                            st.text_area("Full Content", f.read(), height=200)
+                    else:
+                        st.error("Source file no longer exists.")

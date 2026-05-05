@@ -148,14 +148,21 @@ class RAGEngine:
         self.cross_encoder = CrossEncoder(self.cross_encoder_model_name)
         print("✅ Models loaded.")
 
-    def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin"):
-        if os.path.exists(cache_file) and os.path.exists(index_file):
+    def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False):
+        if not force_reindex and os.path.exists(cache_file) and os.path.exists(index_file):
             print("💾 Loading cache...")
             self.chunks = torch.load(cache_file)["chunks"]
             self.faiss_index = faiss.read_index(index_file)
         else:
             print("📂 Processing files from scratch...")
+            if force_reindex:
+                # Remove old cache files if they exist
+                if os.path.exists(cache_file): os.remove(cache_file)
+                if os.path.exists(index_file): os.remove(index_file)
+            
             self.chunks = []
+            if not os.path.exists(folder):
+                os.makedirs(folder)
             for filename in os.listdir(folder):
                 if not filename.endswith(".txt"): continue
                 path = os.path.join(folder, filename)
