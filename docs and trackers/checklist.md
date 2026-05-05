@@ -70,8 +70,8 @@
 * [x] **Plug-and-Play Multi-Model Support** via sidebar dropdown
 
 ## Step 18 — Advanced File Support (Expansion)
-* [ ] Integrate `PyMuPDF` for `.pdf` ingestion
-* [ ] Integrate `python-docx` for `.docx` ingestion
+* [x] Integrate `PyMuPDF` for `.pdf` ingestion
+* [x] Integrate `python-docx` for `.docx` ingestion
 
 ---
 

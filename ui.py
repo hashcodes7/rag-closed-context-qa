@@ -1,7 +1,7 @@
 import streamlit as st
 import time
 import os
-from core import RAGEngine
+from core import RAGEngine, extract_text_from_file
 
 # =====================================================
 # 🌊 RAGBOT V16 (Streamlit UI)
@@ -82,7 +82,7 @@ with st.sidebar:
     st.subheader("📂 Knowledge Manager")
     
     # File Uploader
-    uploaded_files = st.file_uploader("Upload .txt files", type=["txt"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload Knowledge Files", type=["txt", "pdf", "docx"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
             save_path = os.path.join("knowledge_source", uploaded_file.name)
@@ -96,9 +96,11 @@ with st.sidebar:
     st.write("Current Files:")
     if os.path.exists("knowledge_source"):
         for f in os.listdir("knowledge_source"):
-            if f.endswith(".txt"):
+            ext = os.path.splitext(f)[1].lower()
+            if ext in [".txt", ".pdf", ".docx"]:
+                icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘"
                 col_file, col_del = st.columns([0.8, 0.2])
-                col_file.caption(f"📄 {f}")
+                col_file.caption(f"{icon} {f}")
                 if col_del.button("🗑️", key=f"del_{f}"):
                     os.remove(os.path.join("knowledge_source", f))
                     st.session_state["reindex_required"] = True
@@ -110,7 +112,7 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-    st.info("SourceIQ V17 - Interactive Edition")
+    st.info("SourceIQ V18 - Advanced Edition")
 
 # --- INITIALIZE MODELS & DATA ---
 if "reindex_required" not in st.session_state:
@@ -141,7 +143,7 @@ if "messages" not in st.session_state:
 
 # --- HEADER ---
 st.title("🧠 SourceIQ: Advanced RAG Engine")
-st.caption("v16 — FAISS HNSW | Hybrid Search | bitsandbytes Quantization")
+st.caption("v18 — Multi-Format Support | Hybrid Search | Quantization")
 
 # --- CHAT DISPLAY ---
 for msg in st.session_state["messages"]:
@@ -153,8 +155,8 @@ for msg in st.session_state["messages"]:
                 if selected_source:
                     source_path = os.path.join("knowledge_source", selected_source)
                     if os.path.exists(source_path):
-                        with open(source_path, "r", encoding="utf-8") as f:
-                            st.text_area("Full Content", f.read(), height=200)
+                        full_text = extract_text_from_file(source_path)
+                        st.text_area("Full Content", full_text, height=200)
                     else:
                         st.error("Source file no longer exists.")
 
@@ -237,7 +239,7 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
                 if selected_source:
                     source_path = os.path.join("knowledge_source", selected_source)
                     if os.path.exists(source_path):
-                        with open(source_path, "r", encoding="utf-8") as f:
-                            st.text_area("Full Content", f.read(), height=200)
+                        full_text = extract_text_from_file(source_path)
+                        st.text_area("Full Content", full_text, height=200)
                     else:
                         st.error("Source file no longer exists.")

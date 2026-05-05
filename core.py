@@ -4,6 +4,8 @@ import math
 import torch
 import faiss
 import numpy as np
+import fitz  # PyMuPDF
+import docx  # python-docx
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig, TextIteratorStreamer
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from threading import Thread
@@ -93,6 +95,26 @@ def recursive_chunk_text(text, chunk_size=1000, overlap=200):
 def truncate(text, max_words=120):
     return " ".join(text.split()[:max_words])
 
+# 🆕 NEW IN V18: Unified text extraction for multiple formats
+def extract_text_from_file(filepath):
+    ext = os.path.splitext(filepath)[1].lower()
+    try:
+        if ext == ".txt":
+            with open(filepath, "r", encoding="utf-8") as f:
+                return f.read()
+        elif ext == ".pdf":
+            text = ""
+            doc = fitz.open(filepath)
+            for page in doc:
+                text += page.get_text() + "\n"
+            return text
+        elif ext == ".docx":
+            doc = docx.Document(filepath)
+            return "\n".join([para.text for para in doc.paragraphs])
+    except Exception as e:
+        print(f"⚠️ Error reading {filepath}: {e}")
+    return ""
+
 def reciprocal_rank_fusion(results_list, k=60):
     fused_scores = {}
     for results in results_list:
@@ -163,11 +185,19 @@ class RAGEngine:
             self.chunks = []
             if not os.path.exists(folder):
                 os.makedirs(folder)
+            
+            # 🆕 NEW IN V18: Support for PDF and DOCX
+            valid_extensions = (".txt", ".pdf", ".docx")
             for filename in os.listdir(folder):
-                if not filename.endswith(".txt"): continue
+                if not filename.lower().endswith(valid_extensions): continue
                 path = os.path.join(folder, filename)
-                with open(path, "r", encoding="utf-8") as f:
-                    text = f.read()
+                
+                print(f"📄 Processing: {filename}")
+                text = extract_text_from_file(path)
+                
+                if not text.strip():
+                    continue
+
                 text_chunks = recursive_chunk_text(text)
                 for i, chunk in enumerate(text_chunks):
                     self.chunks.append({"source": filename, "chunk_id": i, "text": chunk})
