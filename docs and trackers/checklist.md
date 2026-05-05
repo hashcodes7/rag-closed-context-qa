@@ -67,6 +67,7 @@
 ## Step 17 — Interactive UI Features (Interface)
 * [x] Add document upload management via sidebar
 * [x] Implement "Click-to-Source" viewing in the browser
+* [x] **Plug-and-Play Multi-Model Support** via sidebar dropdown
 
 ## Step 18 — Advanced File Support (Expansion)
 * [ ] Integrate `PyMuPDF` for `.pdf` ingestion

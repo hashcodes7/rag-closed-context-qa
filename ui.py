@@ -27,21 +27,52 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- INITIALIZE SESSION STATE ---
+if "current_model" not in st.session_state:
+    st.session_state["current_model"] = "Qwen/Qwen2.5-0.5B-Instruct"
+
 # --- CACHED ENGINE INITIALIZATION ---
 @st.cache_resource
-def get_engine():
-    model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+def get_engine(model_name):
     embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
     cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     return RAGEngine(model_name, embed_model_name, cross_encoder_model_name)
 
-engine = get_engine()
+engine = get_engine(st.session_state["current_model"])
 
 # --- SIDEBAR SETTINGS ---
 with st.sidebar:
     st.title("⚙️ Engine Settings")
     st.divider()
     
+    st.subheader("🤖 Model Selection")
+    model_options = [
+        "Qwen/Qwen2.5-0.5B-Instruct",
+        "Qwen/Qwen2.5-1.5B-Instruct",
+        "meta-llama/Llama-3.2-1B-Instruct",
+        "meta-llama/Llama-3.2-3B-Instruct",
+        "HuggingFaceTB/SmolLM2-135M-Instruct",
+        "Custom Model..."
+    ]
+    
+    selected_base = st.selectbox("Choose a model", model_options, 
+                                 index=model_options.index(st.session_state["current_model"]) if st.session_state["current_model"] in model_options else 5)
+    
+    final_model_name = selected_base
+    if selected_base == "Custom Model...":
+        custom_name = st.text_input("Enter HF Model ID", value=st.session_state["current_model"] if st.session_state["current_model"] not in model_options else "")
+        if custom_name:
+            final_model_name = custom_name
+
+    # Model Switch Logic
+    if st.session_state["current_model"] != final_model_name:
+        if st.button("🚀 Apply Model Switch", use_container_width=True):
+            st.session_state["current_model"] = final_model_name
+            st.cache_resource.clear()
+            st.session_state.pop("models_loaded", None) # Force re-load
+            st.rerun()
+
+    st.divider()
     quant_mode = st.selectbox("Quantization Mode", ["4bit", "8bit", "full"], index=0)
     use_hybrid = st.toggle("Enable Hybrid Search (BM25)", value=True)
     
