@@ -9,3 +9,5 @@ streamlit
 pymupdf
 python-docx
 lxml
+llama-cpp-python
+huggingface-hub

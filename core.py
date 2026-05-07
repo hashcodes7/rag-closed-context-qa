@@ -10,8 +10,14 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from threading import Thread
 
+try:
+    from llama_cpp import Llama
+    HAS_LLAMA_CPP = True
+except ImportError:
+    HAS_LLAMA_CPP = False
+
 # =====================================================
-# 🧠 RAG ENGINE CORE (v15 logic)
+# 🧠 RAG ENGINE CORE (v19 Hybrid Logic)
 # =====================================================
 
 class SimpleBM25:
@@ -95,7 +101,6 @@ def recursive_chunk_text(text, chunk_size=1000, overlap=200):
 def truncate(text, max_words=120):
     return " ".join(text.split()[:max_words])
 
-# 🆕 NEW IN V18: Unified text extraction for multiple formats
 def extract_text_from_file(filepath):
     ext = os.path.splitext(filepath)[1].lower()
     try:
@@ -112,7 +117,7 @@ def extract_text_from_file(filepath):
             doc = docx.Document(filepath)
             return "\n".join([para.text for para in doc.paragraphs])
     except Exception as e:
-        print(f"⚠️ Error reading {filepath}: {e}")
+        print(f"[!] Error reading {filepath}: {e}")
     return ""
 
 def reciprocal_rank_fusion(results_list, k=60):
@@ -122,8 +127,6 @@ def reciprocal_rank_fusion(results_list, k=60):
             fused_scores[idx] = fused_scores.get(idx, 0) + 1 / (k + rank)
     sorted_indices = sorted(fused_scores.keys(), key=lambda x: fused_scores[x], reverse=True)
     return sorted_indices
-
-# --- CORE LOADER CLASS ---
 
 class RAGEngine:
     def __init__(self, model_name, embed_model_name, cross_encoder_model_name):
@@ -135,69 +138,81 @@ class RAGEngine:
         self.model = None
         self.embedder = None
         self.cross_encoder = None
+        self.is_gguf = False
         
         self.chunks = []
         self.faiss_index = None
         self.bm25_index = None
 
     def load_models(self, quantization_mode="4bit"):
-        print(f"🔄 Loading models (Mode: {quantization_mode})...")
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        has_cuda = torch.cuda.is_available()
         
-        quant_config = None
-        if quantization_mode == "4bit":
-            quant_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_use_double_quant=True,
-            )
-        elif quantization_mode == "8bit":
-            quant_config = BitsAndBytesConfig(load_in_8bit=True)
-
-        try:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name,
-                quantization_config=quant_config,
-                low_cpu_mem_usage=True,
-                device_map="auto" if quant_config else None
-            )
-        except Exception as e:
-            print(f"⚠️ Quantization failed: {e}. Falling back to full precision.")
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_name, low_cpu_mem_usage=True)
+        # Check for GGUF mode
+        if "gguf" in self.model_name.lower() or self.model_name.endswith(".gguf"):
+            if not HAS_LLAMA_CPP:
+                raise ImportError("Please install llama-cpp-python to use GGUF models: pip install llama-cpp-python")
+            
+            print(f"[+] Loading GGUF Model: {self.model_name} (CPU Optimized)")
+            if "/" in self.model_name and not os.path.exists(self.model_name):
+                 self.model = Llama.from_pretrained(
+                    repo_id=self.model_name,
+                    filename="*q4_k_m.gguf", 
+                    verbose=False,
+                    n_ctx=2048,
+                    n_threads=os.cpu_count() or 4
+                )
+            else:
+                self.model = Llama(model_path=self.model_name, n_ctx=2048, verbose=False)
+            self.is_gguf = True
+            self.tokenizer = None # Llama handles tokenization
+        else:
+            print(f"[*] Loading Transformers Model (Device: {'GPU' if has_cuda else 'CPU'})")
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.is_gguf = False
+            
+            quant_config = None
+            if has_cuda:
+                if quantization_mode == "4bit":
+                    quant_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True)
+                elif quantization_mode == "8bit":
+                    quant_config = BitsAndBytesConfig(load_in_8bit=True)
+            
+            try:
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_name,
+                    quantization_config=quant_config,
+                    low_cpu_mem_usage=True,
+                    device_map="auto" if (has_cuda and quant_config) else None,
+                    torch_dtype="auto"
+                )
+            except Exception as e:
+                print(f"[!] Model load failed: {e}. Falling back to defaults.")
+                self.model = AutoModelForCausalLM.from_pretrained(self.model_name, low_cpu_mem_usage=True)
             
         self.embedder = SentenceTransformer(self.embed_model_name)
         self.cross_encoder = CrossEncoder(self.cross_encoder_model_name)
-        print("✅ Models loaded.")
+        print("[+] Models loaded.")
 
     def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False):
         if not force_reindex and os.path.exists(cache_file) and os.path.exists(index_file):
-            print("💾 Loading cache...")
+            print("[*] Loading cache...")
             self.chunks = torch.load(cache_file)["chunks"]
             self.faiss_index = faiss.read_index(index_file)
         else:
-            print("📂 Processing files from scratch...")
+            print("[*] Processing files from scratch...")
             if force_reindex:
-                # Remove old cache files if they exist
                 if os.path.exists(cache_file): os.remove(cache_file)
                 if os.path.exists(index_file): os.remove(index_file)
             
             self.chunks = []
-            if not os.path.exists(folder):
-                os.makedirs(folder)
+            if not os.path.exists(folder): os.makedirs(folder)
             
-            # 🆕 NEW IN V18: Support for PDF and DOCX
             valid_extensions = (".txt", ".pdf", ".docx")
             for filename in os.listdir(folder):
                 if not filename.lower().endswith(valid_extensions): continue
                 path = os.path.join(folder, filename)
-                
-                print(f"📄 Processing: {filename}")
                 text = extract_text_from_file(path)
-                
-                if not text.strip():
-                    continue
-
+                if not text.strip(): continue
                 text_chunks = recursive_chunk_text(text)
                 for i, chunk in enumerate(text_chunks):
                     self.chunks.append({"source": filename, "chunk_id": i, "text": chunk})
@@ -209,19 +224,15 @@ class RAGEngine:
             self.faiss_index = faiss.IndexHNSWFlat(dim, 32, faiss.METRIC_INNER_PRODUCT)
             self.faiss_index.hnsw.efConstruction = 200
             self.faiss_index.add(embeddings_np)
-            
             torch.save({"chunks": self.chunks}, cache_file)
             faiss.write_index(self.faiss_index, index_file)
-            print("✅ Knowledge base indexed.")
+            print("[+] Knowledge base indexed.")
 
-        # Always initialize BM25
         tokenized_corpus = [tokenize(c["text"]) for c in self.chunks]
         self.bm25_index = SimpleBM25(tokenized_corpus)
 
     def retrieve(self, question, k=3, use_hybrid=True):
         metrics = {}
-        
-        # 1a. Semantic
         start = time.time()
         query_vec = self.embedder.encode([question], convert_to_numpy=True).astype("float32")
         faiss.normalize_L2(query_vec)
@@ -230,20 +241,17 @@ class RAGEngine:
         semantic_ids = [int(idx) for idx in s_indices[0] if idx != -1]
         metrics["semantic_time"] = time.time() - start
         
-        # 1b. Keyword
         start = time.time()
         tokenized_query = tokenize(question)
         bm25_scores = self.bm25_index.get_scores(tokenized_query)
         keyword_ids = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:20]
         metrics["keyword_time"] = time.time() - start
         
-        # 1c. Fusion
         start = time.time()
         fused_ids = reciprocal_rank_fusion([semantic_ids, keyword_ids]) if use_hybrid else semantic_ids
         candidates = [self.chunks[idx].copy() for idx in fused_ids[:10]]
         metrics["fusion_time"] = time.time() - start
         
-        # 2. Rerank
         start = time.time()
         cross_inp = [[question, item["text"]] for item in candidates]
         cross_scores = self.cross_encoder.predict(cross_inp)
@@ -252,29 +260,35 @@ class RAGEngine:
         candidates.sort(key=lambda x: x["score"], reverse=True)
         final_results = candidates[:k]
         metrics["rerank_time"] = time.time() - start
-        
         return final_results, metrics
 
     def generate_stream(self, question, context, history, max_tokens=150):
-        messages = [
-            {"role": "system", "content": (
-                "You are an assistant. Answer the user's question using ONLY the provided context.\n"
-                f"<context>\n{context}\n</context>\n"
-                "If the answer is not in the context, reply exactly with 'Not found.' Do not add explanations."
-            )}
-        ]
+        system_msg = (
+            "You are an assistant. Answer the user's question using ONLY the provided context.\n"
+            f"<context>\n{context}\n</context>\n"
+            "If the answer is not in the context, reply exactly with 'Not found.' Do not add explanations."
+        )
+        
+        messages = [{"role": "system", "content": system_msg}]
         for entry in history[-2:]:
             messages.append({"role": "user", "content": entry["user"]})
             messages.append({"role": "assistant", "content": entry["bot"]})
         messages.append({"role": "user", "content": question})
         
-        text_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        inputs = self.tokenizer(text_prompt, return_tensors="pt").to(self.model.device)
-        
-        streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
-        generation_kwargs = dict(**inputs, streamer=streamer, max_new_tokens=max_tokens, do_sample=False)
-        
-        thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
-        thread.start()
-        
-        return streamer
+        if self.is_gguf:
+            # GGUF Streamer (Generator)
+            def _gguf_generator():
+                for chunk in self.model.create_chat_completion(messages=messages, stream=True, max_tokens=max_tokens):
+                    delta = chunk['choices'][0]['delta']
+                    if 'content' in delta:
+                        yield delta['content']
+            return _gguf_generator()
+        else:
+            # Transformers Streamer
+            text_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            inputs = self.tokenizer(text_prompt, return_tensors="pt").to(self.model.device)
+            streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
+            generation_kwargs = dict(**inputs, streamer=streamer, max_new_tokens=max_tokens, do_sample=False)
+            thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+            thread.start()
+            return streamer

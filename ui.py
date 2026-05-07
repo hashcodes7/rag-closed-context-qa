@@ -28,8 +28,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- INITIALIZE SESSION STATE ---
+# --- INITIALIZE SESSION STATE ---
 if "current_model" not in st.session_state:
-    st.session_state["current_model"] = "Qwen/Qwen2.5-0.5B-Instruct"
+    st.session_state["current_model"] = "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
 
 # --- CACHED ENGINE INITIALIZATION ---
 @st.cache_resource
@@ -47,18 +48,28 @@ with st.sidebar:
     
     st.subheader("🤖 Model Selection")
     model_options = [
+        "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+        "HuggingFaceTB/SmolLM2-135M-Instruct",
+        "HuggingFaceTB/SmolLM2-360M-Instruct",
         "Qwen/Qwen2.5-0.5B-Instruct",
         "Qwen/Qwen2.5-1.5B-Instruct",
         "meta-llama/Llama-3.2-1B-Instruct",
-        "meta-llama/Llama-3.2-3B-Instruct",
         "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         "microsoft/phi-2",
-        "HuggingFaceTB/SmolLM2-135M-Instruct",
         "Custom Model..."
     ]
     
     selected_base = st.selectbox("Choose a model", model_options, 
-                                 index=model_options.index(st.session_state["current_model"]) if st.session_state["current_model"] in model_options else 5)
+                                 index=model_options.index(st.session_state["current_model"]) if st.session_state["current_model"] in model_options else 0)
+    
+    # 🆕 GGUF vs Standard Indicators
+    is_gguf = "gguf" in selected_base.lower() or selected_base.endswith(".gguf")
+    if is_gguf:
+        st.success("⚡ **GGUF (Fast CPU Mode)**")
+        st.caption("Running highly optimized C++ inference.")
+    else:
+        st.info("🌐 **Standard (Normal Mode)**")
+        st.caption("Running standard Transformers inference.")
     
     final_model_name = selected_base
     if selected_base == "Custom Model...":
@@ -156,7 +167,7 @@ for msg in st.session_state["messages"]:
                     source_path = os.path.join("knowledge_source", selected_source)
                     if os.path.exists(source_path):
                         full_text = extract_text_from_file(source_path)
-                        st.text_area("Full Content", full_text, height=200)
+                        st.text_area("Full Content", full_text, height=200, key=f"txt_{st.session_state['messages'].index(msg)}_{selected_source}")
                     else:
                         st.error("Source file no longer exists.")
 
@@ -169,7 +180,9 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
 
     # Generate response
     with st.chat_message("assistant"):
-        with st.status("🔍 Searching & Thinking...") as status:
+        response_placeholder = st.empty()
+        
+        with st.status("⚙️ Response Details", expanded=True) as status:
             # 1. Retrieval
             st.write("Searching hybrid index...")
             top_chunks, metrics = engine.retrieve(prompt, k=3, use_hybrid=use_hybrid)
@@ -177,6 +190,8 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
             if not top_chunks:
                 response = "Not found."
                 sources = []
+                response_placeholder.markdown(response)
+                gen_time = 0
             else:
                 st.write(f"Found {len(top_chunks)} relevant segments.")
                 context = ""
@@ -187,7 +202,6 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
                 
                 # 2. Generation
                 st.write("Synthesizing answer...")
-                response_placeholder = st.empty()
                 full_response = ""
                 
                 streamer = engine.generate_stream(prompt, context, [
@@ -204,26 +218,28 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
                 response_placeholder.markdown(full_response)
                 response = full_response
                 
-            status.update(label="✅ Response Generated", state="complete", expanded=False)
+            # Show Telemetry inside the status block
+            st.divider()
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Retrieval", f"{sum(metrics.values()):.3f}s" if metrics else "0s")
+            col2.metric("Generation", f"{gen_time:.3f}s")
+            col3.metric("Total", f"{sum(metrics.values()) + gen_time:.3f}s" if metrics else f"{gen_time:.3f}s")
+            
+            # Show Chart inside the status block
+            if top_chunks:
+                chart_data = {
+                    "Step": ["Semantic", "Keyword", "Fusion", "Rerank", "LLM Gen"],
+                    "Time (s)": [
+                        metrics.get("semantic_time", 0), 
+                        metrics.get("keyword_time", 0), 
+                        metrics.get("fusion_time", 0), 
+                        metrics.get("rerank_time", 0), 
+                        gen_time
+                    ]
+                }
+                st.bar_chart(chart_data, x="Step", y="Time (s)")
 
-        # Show Telemetry
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Retrieval", f"{sum(metrics.values()):.3f}s")
-        col2.metric("Generation", f"{gen_time:.3f}s")
-        col3.metric("Total", f"{sum(metrics.values()) + gen_time:.3f}s")
-        
-        # Show Chart
-        chart_data = {
-            "Step": ["Semantic", "Keyword", "Fusion", "Rerank", "LLM Gen"],
-            "Time (s)": [
-                metrics["semantic_time"], 
-                metrics["keyword_time"], 
-                metrics["fusion_time"], 
-                metrics["rerank_time"], 
-                gen_time
-            ]
-        }
-        st.bar_chart(chart_data, x="Step", y="Time (s)")
+            status.update(label="⚙️ Response Details", state="complete", expanded=False)
 
         # Save to history
         st.session_state["messages"].append({
@@ -240,6 +256,6 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
                     source_path = os.path.join("knowledge_source", selected_source)
                     if os.path.exists(source_path):
                         full_text = extract_text_from_file(source_path)
-                        st.text_area("Full Content", full_text, height=200)
+                        st.text_area("Full Content", full_text, height=200, key=f"last_txt_{len(st.session_state['messages'])}_{selected_source}")
                     else:
                         st.error("Source file no longer exists.")
