@@ -101,6 +101,38 @@ def recursive_chunk_text(text, chunk_size=1000, overlap=200):
 def truncate(text, max_words=120):
     return " ".join(text.split()[:max_words])
 
+def semantic_chunk_text(text, embedder, threshold=0.5, max_chunk_size=1200):
+    """
+    Splits text into chunks based on semantic similarity between sentences.
+    """
+    import re
+    # Simple sentence splitter
+    sentences = re.split(r'(?<=[.!?]) +', text.replace('\n', ' '))
+    sentences = [s.strip() for s in sentences if s.strip()]
+    if not sentences: return []
+    
+    embeddings = embedder.encode(sentences, convert_to_numpy=True)
+    
+    chunks = []
+    current_chunk = [sentences[0]]
+    
+    for i in range(1, len(sentences)):
+        # Calculate similarity with previous sentence
+        sim = np.dot(embeddings[i], embeddings[i-1]) / (np.linalg.norm(embeddings[i]) * np.linalg.norm(embeddings[i-1]) + 1e-9)
+        
+        # Check if current chunk is getting too big or similarity is low
+        current_text = " ".join(current_chunk)
+        if sim < threshold or len(current_text) > max_chunk_size:
+            chunks.append(current_text)
+            current_chunk = [sentences[i]]
+        else:
+            current_chunk.append(sentences[i])
+            
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+        
+    return chunks
+
 def extract_text_from_file(filepath):
     ext = os.path.splitext(filepath)[1].lower()
     try:
@@ -141,6 +173,7 @@ class RAGEngine:
         self.is_gguf = False
         
         self.chunks = []
+        self.parent_chunks = {} # Maps parent_id to text
         self.faiss_index = None
         self.bm25_index = None
 
@@ -193,29 +226,52 @@ class RAGEngine:
         self.cross_encoder = CrossEncoder(self.cross_encoder_model_name)
         print("[+] Models loaded.")
 
-    def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False):
+    def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False, chunking_mode="semantic"):
         if not force_reindex and os.path.exists(cache_file) and os.path.exists(index_file):
             print("[*] Loading cache...")
-            self.chunks = torch.load(cache_file)["chunks"]
+            data = torch.load(cache_file)
+            self.chunks = data["chunks"]
+            self.parent_chunks = data.get("parent_chunks", {})
             self.faiss_index = faiss.read_index(index_file)
         else:
-            print("[*] Processing files from scratch...")
+            print(f"[*] Processing files using {chunking_mode} chunking...")
             if force_reindex:
                 if os.path.exists(cache_file): os.remove(cache_file)
                 if os.path.exists(index_file): os.remove(index_file)
             
             self.chunks = []
+            self.parent_chunks = {}
             if not os.path.exists(folder): os.makedirs(folder)
             
             valid_extensions = (".txt", ".pdf", ".docx")
+            parent_id_counter = 0
+            
             for filename in os.listdir(folder):
                 if not filename.lower().endswith(valid_extensions): continue
                 path = os.path.join(folder, filename)
                 text = extract_text_from_file(path)
                 if not text.strip(): continue
-                text_chunks = recursive_chunk_text(text)
-                for i, chunk in enumerate(text_chunks):
-                    self.chunks.append({"source": filename, "chunk_id": i, "text": chunk})
+                
+                # 1. Create Semantic Parents
+                if chunking_mode == "semantic":
+                    parents = semantic_chunk_text(text, self.embedder)
+                else:
+                    parents = recursive_chunk_text(text, chunk_size=1500)
+                
+                for p_text in parents:
+                    p_id = f"p_{parent_id_counter}"
+                    self.parent_chunks[p_id] = p_text
+                    parent_id_counter += 1
+                    
+                    # 2. Create Overlapping Children for dense retrieval
+                    children = recursive_chunk_text(p_text, chunk_size=400, overlap=50)
+                    for i, c_text in enumerate(children):
+                        self.chunks.append({
+                            "source": filename, 
+                            "chunk_id": i, 
+                            "text": c_text, 
+                            "parent_id": p_id
+                        })
             
             chunk_texts = [item["text"] for item in self.chunks]
             embeddings_np = self.embedder.encode(chunk_texts, convert_to_numpy=True).astype("float32")
@@ -224,47 +280,97 @@ class RAGEngine:
             self.faiss_index = faiss.IndexHNSWFlat(dim, 32, faiss.METRIC_INNER_PRODUCT)
             self.faiss_index.hnsw.efConstruction = 200
             self.faiss_index.add(embeddings_np)
-            torch.save({"chunks": self.chunks}, cache_file)
+            torch.save({"chunks": self.chunks, "parent_chunks": self.parent_chunks}, cache_file)
             faiss.write_index(self.faiss_index, index_file)
             print("[+] Knowledge base indexed.")
 
         tokenized_corpus = [tokenize(c["text"]) for c in self.chunks]
         self.bm25_index = SimpleBM25(tokenized_corpus)
 
-    def retrieve(self, question, k=3, use_hybrid=True):
+    def generate_hypothetical_answer(self, question):
+        """Generates a brief hypothetical answer to improve retrieval."""
+        prompt = f"Write a one-sentence technical answer to this question: {question}"
+        
+        if self.is_gguf:
+            res = self.model.create_chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=50
+            )
+            return res['choices'][0]['message']['content']
+        else:
+            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+            outputs = self.model.generate(**inputs, max_new_tokens=50, do_sample=False)
+            return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    def retrieve(self, question, k=3, use_hybrid=True, use_hyde=False, use_rerank=True, use_parent=True):
         metrics = {}
         start = time.time()
-        query_vec = self.embedder.encode([question], convert_to_numpy=True).astype("float32")
+        
+        # 1. Semantic Search (with optional HyDE)
+        search_query = question
+        if use_hyde:
+            try:
+                hyde_answer = self.generate_hypothetical_answer(question)
+                search_query = f"{question} {hyde_answer}"
+                metrics["hyde_gen_time"] = time.time() - start
+            except Exception as e:
+                print(f"[!] HyDE failed: {e}")
+        
+        query_vec = self.embedder.encode([search_query], convert_to_numpy=True).astype("float32")
         faiss.normalize_L2(query_vec)
         self.faiss_index.hnsw.efSearch = 64
         _, s_indices = self.faiss_index.search(query_vec, k=min(20, self.faiss_index.ntotal))
         semantic_ids = [int(idx) for idx in s_indices[0] if idx != -1]
         metrics["semantic_time"] = time.time() - start
         
+        # 2. Keyword Search (BM25)
         start = time.time()
-        tokenized_query = tokenize(question)
-        bm25_scores = self.bm25_index.get_scores(tokenized_query)
-        keyword_ids = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:20]
+        if use_hybrid:
+            tokenized_query = tokenize(question)
+            bm25_scores = self.bm25_index.get_scores(tokenized_query)
+            keyword_ids = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:20]
+        else:
+            keyword_ids = []
         metrics["keyword_time"] = time.time() - start
         
+        # 3. Hybrid Fusion (RRF)
         start = time.time()
         fused_ids = reciprocal_rank_fusion([semantic_ids, keyword_ids]) if use_hybrid else semantic_ids
-        candidates = [self.chunks[idx].copy() for idx in fused_ids[:10]]
+        candidates = [self.chunks[idx].copy() for idx in fused_ids[:20]] # Keep more for reranking
         metrics["fusion_time"] = time.time() - start
         
+        # 4. Reranking (Cross-Encoder)
         start = time.time()
-        cross_inp = [[question, item["text"]] for item in candidates]
-        cross_scores = self.cross_encoder.predict(cross_inp)
-        for i in range(len(candidates)):
-            candidates[i]["score"] = float(cross_scores[i])
-        candidates.sort(key=lambda x: x["score"], reverse=True)
+        if use_rerank and len(candidates) > 0:
+            cross_inp = [[question, item["text"]] for item in candidates]
+            cross_scores = self.cross_encoder.predict(cross_inp)
+            for i in range(len(candidates)):
+                candidates[i]["score"] = float(cross_scores[i])
+            candidates.sort(key=lambda x: x["score"], reverse=True)
+        else:
+            # If no reranking, scores are just their rank position
+            for i, c in enumerate(candidates):
+                c["score"] = 1.0 / (i + 1)
+        
         final_results = candidates[:k]
+        
+        # 5. Parent-Document Expansion
+        for item in final_results:
+            if use_parent:
+                p_id = item.get("parent_id")
+                if p_id in self.parent_chunks:
+                    item["retrieval_text"] = item["text"]
+                    item["text"] = self.parent_chunks[p_id]
+            else:
+                item["retrieval_text"] = item["text"]
+        
         metrics["rerank_time"] = time.time() - start
         return final_results, metrics
 
     def generate_stream(self, question, context, history, max_tokens=150):
         system_msg = (
-            "You are an assistant. Answer the user's question using ONLY the provided context.\n"
+            "You are an AI assistant. Answer the question using ONLY the provided context.\n"
+            "CRITICAL: Use in-text citations like [1], [2] to indicate which part of the context your answer came from.\n"
             f"<context>\n{context}\n</context>\n"
             "If the answer is not in the context, reply exactly with 'Not found.' Do not add explanations."
         )

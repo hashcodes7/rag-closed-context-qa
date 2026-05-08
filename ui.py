@@ -2,6 +2,10 @@ import streamlit as st
 import time
 import os
 from core import RAGEngine, extract_text_from_file
+import database as db
+
+# Initialize database
+db.init_db()
 
 # =====================================================
 # 🌊 RAGBOT V16 (Streamlit UI)
@@ -86,8 +90,15 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
+    st.subheader("🛠️ Algorithm Control")
+    use_hybrid = st.toggle("Hybrid Search (BM25)", value=True, help="Combines keyword search with vector search.")
+    use_hyde = st.toggle("HyDE Expansion", value=False, help="Generates an ideal answer first to improve retrieval.")
+    use_rerank = st.toggle("Cross-Encoder Rerank", value=True, help="Uses a secondary model to refine result relevance.")
+    use_parent = st.toggle("Parent-Doc Context", value=True, help="Retrieves the full paragraph context for the LLM.")
+    
+    st.divider()
     quant_mode = st.selectbox("Quantization Mode", ["4bit", "8bit", "full"], index=0)
-    use_hybrid = st.toggle("Enable Hybrid Search (BM25)", value=True)
+    chunking_mode = st.radio("Chunking Strategy", ["semantic", "recursive"], index=0)
     
     st.divider()
     st.subheader("📂 Knowledge Manager")
@@ -123,7 +134,12 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-    st.info("SourceIQ V18 - Advanced Edition")
+    if st.button("🗑️ Clear Chat History"):
+        db.clear_history("default_user")
+        st.session_state["messages"] = []
+        st.rerun()
+
+    st.info("SourceIQ V20 - Advanced Edition")
 
 # --- INITIALIZE MODELS & DATA ---
 if "reindex_required" not in st.session_state:
@@ -133,8 +149,8 @@ if "models_loaded" not in st.session_state:
     with st.status("🚀 Initializing Engine...", expanded=True) as status:
         st.write("🔄 Loading AI Models...")
         engine.load_models(quantization_mode=quant_mode)
-        st.write("📂 Indexing Knowledge Base...")
-        engine.process_knowledge_base()
+        st.write(f"📂 Indexing Knowledge Base ({chunking_mode})...")
+        engine.process_knowledge_base(chunking_mode=chunking_mode)
         status.update(label="✅ Engine Ready!", state="complete", expanded=False)
     st.session_state["models_loaded"] = True
 
@@ -143,14 +159,14 @@ if st.session_state["reindex_required"]:
     st.warning("⚠️ Knowledge base has changed. Re-index required to apply changes.")
     if st.button("🛠️ Re-index Knowledge Base Now"):
         with st.status("🏗️ Re-indexing...", expanded=True) as status:
-            engine.process_knowledge_base(force_reindex=True)
+            engine.process_knowledge_base(force_reindex=True, chunking_mode=chunking_mode)
             st.session_state["reindex_required"] = False
             status.update(label="✅ Re-indexed Successfully!", state="complete", expanded=False)
             st.rerun()
 
 # --- SESSION STATE FOR CHAT ---
 if "messages" not in st.session_state:
-    st.session_state["messages"] = []
+    st.session_state["messages"] = db.load_messages("default_user")
 
 # --- HEADER ---
 st.title("🧠 SourceIQ: Advanced RAG Engine")
@@ -161,20 +177,20 @@ for msg in st.session_state["messages"]:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if "sources" in msg and msg["sources"]:
-            with st.expander("📚 View Full Sources"):
-                selected_source = st.selectbox(f"Select a source to view ({msg['role']}_{st.session_state['messages'].index(msg)})", msg["sources"], key=f"src_{st.session_state['messages'].index(msg)}")
-                if selected_source:
-                    source_path = os.path.join("knowledge_source", selected_source)
-                    if os.path.exists(source_path):
-                        full_text = extract_text_from_file(source_path)
-                        st.text_area("Full Content", full_text, height=200, key=f"txt_{st.session_state['messages'].index(msg)}_{selected_source}")
+            with st.expander("📚 Verified Citations"):
+                for s in msg["sources"]:
+                    # Handle both old (string) and new (dict) source formats
+                    if isinstance(s, dict):
+                        st.markdown(f"**[{s['id']}] {s['source']}**")
+                        st.caption(s['text'])
                     else:
-                        st.error("Source file no longer exists.")
+                        st.markdown(f"• {s}")
 
 # --- CHAT INPUT ---
 if prompt := st.chat_input("Ask about your knowledge base..."):
     # Add user message
     st.session_state["messages"].append({"role": "user", "content": prompt})
+    db.save_message("default_user", "user", prompt)
     with st.chat_message("user"):
         st.markdown(prompt)
 
@@ -182,10 +198,17 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
         
-        with st.status("⚙️ Response Details", expanded=True) as status:
+        with st.status("⚙️ Response Details", expanded= True) as status:
             # 1. Retrieval
-            st.write("Searching hybrid index...")
-            top_chunks, metrics = engine.retrieve(prompt, k=3, use_hybrid=use_hybrid)
+            st.write(f"Searching index {'(Hybrid+' if use_hybrid else '('}{'HyDE+' if use_hyde else ''}{'Rerank)' if use_rerank else ')'}...")
+            top_chunks, metrics = engine.retrieve(
+                prompt, 
+                k=3, 
+                use_hybrid=use_hybrid, 
+                use_hyde=use_hyde, 
+                use_rerank=use_rerank, 
+                use_parent=use_parent
+            )
             
             if not top_chunks:
                 response = "Not found."
@@ -195,10 +218,15 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
             else:
                 st.write(f"Found {len(top_chunks)} relevant segments.")
                 context = ""
-                sources = []
-                for c in top_chunks:
-                    context += f"\n[Source: {c['source']}]\n{c['text']}\n"
-                    sources.append(c["source"])
+                sources_meta = []
+                for i, c in enumerate(top_chunks):
+                    # Use [Source 1], [Source 2] for LLM to cite
+                    context += f"\n[Source {i+1}: {c['source']}]\n{c['text']}\n"
+                    sources_meta.append({
+                        "id": i+1, 
+                        "source": c["source"], 
+                        "text": c.get("retrieval_text", c["text"]) # Show exact snippet
+                    })
                 
                 # 2. Generation
                 st.write("Synthesizing answer...")
@@ -221,15 +249,17 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
             # Show Telemetry inside the status block
             st.divider()
             col1, col2, col3 = st.columns(3)
-            col1.metric("Retrieval", f"{sum(metrics.values()):.3f}s" if metrics else "0s")
+            retrieval_time = metrics.get("semantic_time", 0) + metrics.get("keyword_time", 0) + metrics.get("hyde_gen_time", 0)
+            col1.metric("Retrieval", f"{retrieval_time:.3f}s")
             col2.metric("Generation", f"{gen_time:.3f}s")
-            col3.metric("Total", f"{sum(metrics.values()) + gen_time:.3f}s" if metrics else f"{gen_time:.3f}s")
+            col3.metric("Total", f"{retrieval_time + gen_time:.3f}s")
             
             # Show Chart inside the status block
             if top_chunks:
                 chart_data = {
-                    "Step": ["Semantic", "Keyword", "Fusion", "Rerank", "LLM Gen"],
+                    "Step": ["HyDE", "Semantic", "Keyword", "Fusion", "Rerank", "LLM Gen"],
                     "Time (s)": [
+                        metrics.get("hyde_gen_time", 0),
                         metrics.get("semantic_time", 0), 
                         metrics.get("keyword_time", 0), 
                         metrics.get("fusion_time", 0), 
@@ -245,17 +275,13 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
         st.session_state["messages"].append({
             "role": "assistant", 
             "content": response, 
-            "sources": list(set(sources))
+            "sources": sources_meta,
+            "metrics": metrics
         })
+        db.save_message("default_user", "assistant", response, sources_meta, metrics)
         
-        if sources:
-            with st.expander("📚 View Full Sources"):
-                unique_srcs = list(set(sources))
-                selected_source = st.selectbox("Select a source to view", unique_srcs, key=f"last_src_{len(st.session_state['messages'])}")
-                if selected_source:
-                    source_path = os.path.join("knowledge_source", selected_source)
-                    if os.path.exists(source_path):
-                        full_text = extract_text_from_file(source_path)
-                        st.text_area("Full Content", full_text, height=200, key=f"last_txt_{len(st.session_state['messages'])}_{selected_source}")
-                    else:
-                        st.error("Source file no longer exists.")
+        if sources_meta:
+            with st.expander("📚 Verified Citations"):
+                for s in sources_meta:
+                    st.markdown(f"**[{s['id']}] {s['source']}**")
+                    st.caption(s['text'])

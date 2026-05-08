@@ -42,51 +42,66 @@
 
 ---
 
-# 🌌 Phase 2: Future Horizon (Performance & UI)
+## ✅ Phase 2: Performance & Interface (Completed)
 
-## Step 12 — Advanced Chunking (Performance)
+### Step 12 — Advanced Chunking (v12)
 * [x] Implement `RecursiveCharacterTextSplitter` logic
 * [x] Ensure sentence-aware boundaries to prevent fact-clipping
 
-## Step 13 — Vector Indexing (Performance)
+### Step 13 — Vector Indexing (v13)
 * [x] Integrate **FAISS** for indexed search
-* [x] Move from linear scan to HNSW (Hierarchical Navigable Small World) index
+* [x] Move from linear scan to HNSW index
 
-## Step 14 — Model Quantization (Performance)
+### Step 14 — Model Quantization (v14)
 * [x] Implement 4-bit/8-bit loading via `bitsandbytes`
-* [x] Optimize VRAM/RAM usage for faster generation
 
-## Step 15 — Hybrid Search (Performance)
+### Step 15 — Hybrid Search (v15)
 * [x] Combine Semantic Search with Keyword Search (BM25)
 * [x] Implement a reciprocal rank fusion (RRF) for scoring
 
-## Step 16 — Streamlit Web UI (Interface)
+### Step 16 — Streamlit Web UI (v16)
 * [x] Create basic `streamlit` chat dashboard
 * [x] Move terminal telemetry to visual charts
 
-## Step 17 — Interactive UI Features (Interface)
+### Step 17 — Interactive UI Features (v17)
 * [x] Add document upload management via sidebar
 * [x] Implement "Click-to-Source" viewing in the browser
-* [x] **Plug-and-Play Multi-Model Support** via sidebar dropdown
 
-## Step 18 — Advanced File Support (Expansion)
+### Step 18 — Advanced File Support (v18)
 * [x] Integrate `PyMuPDF` for `.pdf` ingestion
 * [x] Integrate `python-docx` for `.docx` ingestion
+
+### Step 19 — GGUF & CPU Optimization (v19)
+* [x] Integrate `llama-cpp-python` for GGUF model support
+* [x] Enable high-performance local inference on standard CPUs
+
+---
+
+## 🚀 Phase 3: The Modular RAG Lab (v20 - Current)
+
+### Step 20 — Semantic Intelligence
+* [x] **Semantic Chunking**: Context-aware splitting via sentence embeddings
+* [x] **HyDE Expansion**: Hypothetical Document Embeddings for query expansion
+* [x] **Parent-Document Retrieval**: Child-match with Parent-context expansion
+
+### Step 21 — Infrastructure & Persistence
+* [x] **SQLite Chat Persistence**: Conversations saved to `rag_history.db`
+* [x] **Modular Algorithm Toggles**: Instant on/off controls for every pipeline stage
+* [x] **Verified Citation UI**: In-text `[1], [2]` mapping to verifiable source snippets
 
 ---
 
 # 📝 Handover Notes for Future Agents
 
 ### Current System State:
-*   **Version**: `V13`
-*   **Model**: `Qwen/Qwen2.5-0.5B-Instruct`
-*   **Prompting**: Must use `tokenizer.apply_chat_template` (ChatML) to prevent the 0.5B model from hallucinating.
-*   **Chunking**: `recursive_chunk_text()` — separator hierarchy `\n\n` → `\n` → `". "` → `" "`, `chunk_size=1000 chars`, `overlap=200 chars`.
-*   **Retrieval**: Two-stage — Stage 1: `faiss.IndexHNSWFlat` (M=32, efSearch=64) ANN search; Stage 2: Cross-Encoder `ms-marco-MiniLM-L-6-v2` reranking.
-*   **Streaming**: Handled via `threading.Thread` and `TextIteratorStreamer`.
-*   **Caching**: **Dual-file** — `vector_cache.pt` (chunk metadata) + `faiss_index.bin` (HNSW index). Both must exist for a cache hit. Delete both to force re-index.
+*   **Version**: `V20`
+*   **Engine**: Hybrid (FAISS HNSW + BM25) with RRF blending.
+*   **Intelligence**: HyDE (Optional), Semantic Chunking (Optional), Cross-Encoder Reranking (Optional).
+*   **Architecture**: Modular "Toggle-Based" Lab.
+*   **Persistence**: SQLite-backed history and telemetry.
 
 ### Key Files:
-*   `app.py`: The main entry point and engine.
-*   `knowledge_source/`: Ingest directory for data.
-*   `docs and trackers/`: Historical architecture logs for every version.
+*   `core.py`: The RAGEngine logic.
+*   `ui.py`: Streamlit interface.
+*   `database.py`: SQLite persistence layer.
+*   `documents/algorithms.md`: Technical documentation of all V20 algorithms.
