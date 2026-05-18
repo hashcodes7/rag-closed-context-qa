@@ -1,10 +1,10 @@
 Company Overview:
-TechNova Innovations is a leading AI and cloud computing solutions provider founded in 2012. Our headquarters is located in Austin, Texas, with branch offices in London, Tokyo, and Bangalore.
-Mission: To empower businesses through intelligent cloud infrastructure and scalable AI models.
-Key Products:
-- CloudBridge: A seamless multi-cloud deployment platform.
-- NovaAI: An enterprise-grade natural language processing engine.
-- DataShield: A decentralized enterprise data security protocol.
-CEO: Alice Vanguard
-CTO: Robert Chang
-Revenue (2025): $450 Million
+Cognizant is an American multinational information technology services and consulting company founded in 1994. Our headquarters is located in Teaneck, New Jersey, with global delivery centers worldwide.
+Mission: To engineer modern businesses to improve everyday life. We help clients modernize technology, reimagine processes and transform experiences so they can stay ahead in our fast-changing world.
+Key Services:
+- Digital Transformation: Modernizing legacy IT infrastructure and enterprise applications.
+- Cloud Computing: Cloud strategy, migration, and infrastructure management.
+- Artificial Intelligence: Enterprise AI, generative AI solutions, and advanced data analytics.
+CEO: Ravi Kumar S
+Chief AI Officer: Babak Hodjat
+Revenue (2023): $19.4 Billion

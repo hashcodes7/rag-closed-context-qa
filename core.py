@@ -1,11 +1,12 @@
 import os
+os.environ["HF_HUB_DISABLE_SSL_VERIFICATION"] = "1"
+os.environ["HF_HUB_DISABLE_SSL_VERIFY"] = "1"
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 import time
 import math
 import torch
 import faiss
 import numpy as np
-import fitz  # PyMuPDF
-import docx  # python-docx
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig, TextIteratorStreamer
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from threading import Thread
@@ -61,8 +62,9 @@ class SimpleBM25:
                 scores[i] += idf * (fi * (self.k1 + 1)) / (fi + self.k1 * (1 - self.b + self.b * self.doc_len[i] / self.avgdl))
         return scores
 
+import re
 def tokenize(text):
-    return text.lower().replace(".", " ").replace(",", " ").replace("?", " ").split()
+    return re.sub(r'[^\w\s]', ' ', text.lower()).split()
 
 def recursive_chunk_text(text, chunk_size=1000, overlap=200):
     separators = ["\n\n", "\n", ". ", " "]
@@ -106,8 +108,9 @@ def semantic_chunk_text(text, embedder, threshold=0.5, max_chunk_size=1200):
     Splits text into chunks based on semantic similarity between sentences.
     """
     import re
-    # Simple sentence splitter
-    sentences = re.split(r'(?<=[.!?]) +', text.replace('\n', ' '))
+    # Treat newlines as sentence boundaries by replacing them with a period and space
+    clean_text = re.sub(r'\n+', '. ', text)
+    sentences = re.split(r'(?<=[.!?]) +', clean_text)
     sentences = [s.strip() for s in sentences if s.strip()]
     if not sentences: return []
     
@@ -140,14 +143,26 @@ def extract_text_from_file(filepath):
             with open(filepath, "r", encoding="utf-8") as f:
                 return f.read()
         elif ext == ".pdf":
+            import fitz
             text = ""
             doc = fitz.open(filepath)
             for page in doc:
                 text += page.get_text() + "\n"
             return text
         elif ext == ".docx":
+            import docx
             doc = docx.Document(filepath)
             return "\n".join([para.text for para in doc.paragraphs])
+        elif ext in [".html", ".htm"]:
+            from bs4 import BeautifulSoup
+            with open(filepath, "r", encoding="utf-8") as f:
+                soup = BeautifulSoup(f, "html.parser")
+                for script in soup(["script", "style"]):
+                    script.extract()
+                text = soup.get_text(separator=' ')
+                lines = (line.strip() for line in text.splitlines())
+                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                return '\n'.join(chunk for chunk in chunks if chunk)
     except Exception as e:
         print(f"[!] Error reading {filepath}: {e}")
     return ""
@@ -187,13 +202,46 @@ class RAGEngine:
             
             print(f"[+] Loading GGUF Model: {self.model_name} (CPU Optimized)")
             if "/" in self.model_name and not os.path.exists(self.model_name):
-                 self.model = Llama.from_pretrained(
-                    repo_id=self.model_name,
-                    filename="*q4_k_m.gguf", 
-                    verbose=False,
-                    n_ctx=2048,
-                    n_threads=os.cpu_count() or 4
-                )
+                try:
+                    from modelscope.hub.snapshot_download import snapshot_download
+                    print(f"[*] Attempting download from ModelScope: {self.model_name}")
+                    try:
+                        model_dir = snapshot_download(self.model_name, allow_patterns=['*q4_k_m.gguf'])
+                    except Exception as e:
+                        print(f"[*] ModelScope failed with {self.model_name}: {e}")
+                        if "/" in self.model_name:
+                            parts = self.model_name.split("/")
+                            parts[0] = parts[0].lower()
+                            lowered_name = "/".join(parts)
+                            print(f"[*] Trying lowered name on ModelScope: {lowered_name}")
+                            model_dir = snapshot_download(lowered_name, allow_patterns=['*q4_k_m.gguf'])
+                        else:
+                            raise e
+                    
+                    gguf_file = None
+                    for root, dirs, files in os.walk(model_dir):
+                        for f in files:
+                            if f.endswith('.gguf'):
+                                gguf_file = os.path.join(root, f)
+                                break
+                        if gguf_file:
+                            break
+                                
+                    if gguf_file:
+                        print(f"[+] Loading ModelScope file: {gguf_file}")
+                        self.model = Llama(model_path=gguf_file, n_ctx=2048, verbose=False)
+                    else:
+                        print("[!] No GGUF file found in ModelScope download. Falling back to Hugging Face.")
+                        raise FileNotFoundError("No GGUF file found")
+                except (ImportError, Exception) as e:
+                    print(f"[!] ModelScope failed or not installed: {e}. Falling back to Hugging Face.")
+                    self.model = Llama.from_pretrained(
+                        repo_id=self.model_name,
+                        filename="*q4_k_m.gguf", 
+                        verbose=False,
+                        n_ctx=2048,
+                        n_threads=os.cpu_count() or 4
+                    )
             else:
                 self.model = Llama(model_path=self.model_name, n_ctx=2048, verbose=False)
             self.is_gguf = True
@@ -222,8 +270,45 @@ class RAGEngine:
                 print(f"[!] Model load failed: {e}. Falling back to defaults.")
                 self.model = AutoModelForCausalLM.from_pretrained(self.model_name, low_cpu_mem_usage=True)
             
-        self.embedder = SentenceTransformer(self.embed_model_name)
-        self.cross_encoder = CrossEncoder(self.cross_encoder_model_name)
+        # Load Embedder
+        local_embed_path = os.path.join(os.getcwd(), "all-MiniLM-L6-v2")
+        cached_embed_path = os.path.expanduser("~/.cache/modelscope/hub/models/sentence-transformers/all-MiniLM-L6-v2")
+        std_cached_embed_path = os.path.expanduser("~/.cache/torch/sentence_transformers/sentence-transformers_all-MiniLM-L6-v2")
+        
+        target_embed_path = None
+        if os.path.exists(local_embed_path):
+            target_embed_path = local_embed_path
+        elif os.path.exists(cached_embed_path) and (os.path.exists(os.path.join(cached_embed_path, "model.safetensors")) or os.path.exists(os.path.join(cached_embed_path, "pytorch_model.bin"))):
+            target_embed_path = cached_embed_path
+        elif os.path.exists(std_cached_embed_path):
+            target_embed_path = std_cached_embed_path
+
+        if target_embed_path:
+            print(f"[+] Loading embedder from: {target_embed_path}")
+            self.embedder = SentenceTransformer(target_embed_path)
+        else:
+            try:
+                from modelscope.hub.snapshot_download import snapshot_download
+                print(f"[*] Downloading embedder from ModelScope: {self.embed_model_name}")
+                try:
+                    embed_dir = snapshot_download(self.embed_model_name)
+                except Exception:
+                    if "/" in self.embed_model_name:
+                        parts = self.embed_model_name.split("/")
+                        parts[0] = parts[0].lower()
+                        lowered_name = "/".join(parts)
+                        print(f"[*] Trying lowered name on ModelScope: {lowered_name}")
+                        embed_dir = snapshot_download(lowered_name)
+                    else:
+                        raise
+                self.embedder = SentenceTransformer(embed_dir)
+            except Exception as e:
+                print(f"[!] ModelScope embedder download failed: {e}. Falling back to Hugging Face.")
+                self.embedder = SentenceTransformer(self.embed_model_name)
+
+        # Load Cross-Encoder (Disabled due to network issues)
+        print("[!] Disabling Cross-Encoder loading due to persistent connection issues.")
+        self.cross_encoder = None
         print("[+] Models loaded.")
 
     def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False, chunking_mode="semantic"):
@@ -243,7 +328,7 @@ class RAGEngine:
             self.parent_chunks = {}
             if not os.path.exists(folder): os.makedirs(folder)
             
-            valid_extensions = (".txt", ".pdf", ".docx")
+            valid_extensions = (".txt", ".pdf", ".docx", ".html", ".htm")
             parent_id_counter = 0
             
             for filename in os.listdir(folder):
@@ -341,7 +426,7 @@ class RAGEngine:
         
         # 4. Reranking (Cross-Encoder)
         start = time.time()
-        if use_rerank and len(candidates) > 0:
+        if use_rerank and self.cross_encoder is not None and len(candidates) > 0:
             cross_inp = [[question, item["text"]] for item in candidates]
             cross_scores = self.cross_encoder.predict(cross_inp)
             for i in range(len(candidates)):
@@ -369,10 +454,10 @@ class RAGEngine:
 
     def generate_stream(self, question, context, history, max_tokens=150):
         system_msg = (
-            "You are an AI assistant. Answer the question using ONLY the provided context.\n"
-            "CRITICAL: Use in-text citations like [1], [2] to indicate which part of the context your answer came from.\n"
-            f"<context>\n{context}\n</context>\n"
-            "If the answer is not in the context, reply exactly with 'Not found.' Do not add explanations."
+            "You are a strict question-answering AI. You must answer the user's question based ONLY on the following Context.\n\n"
+            f"--- CONTEXT START ---\n{context}\n--- CONTEXT END ---\n\n"
+            "If the Context contains the answer, extract it and cite the source like [Source 1]. "
+            "If the Context does NOT contain the answer, you must reply EXACTLY with 'Not found.' and nothing else."
         )
         
         messages = [{"role": "system", "content": system_msg}]

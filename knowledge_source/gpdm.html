@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPDM Bites | Refreshments for us</title>
+  <style>
+    :root { --bg:#f3f4f6; --surface:#fff; --surface-alt:#f8fafc; --text:#0f172a; --muted:#475569; --line:#dbe2ea; --brand:#000048; --brand-strong:#00003a; --brand-soft:#eef2ff; --accent:#0f6cbd; --note:#eef6ff; --warn:#fff7e6; --shadow:0 8px 24px rgba(15,23,42,.06); --radius:16px; --sidebar-w:320px; }
+    * { box-sizing:border-box; } html { scroll-behavior:smooth; }
+    body { margin:0; font-family:'Segoe UI', Arial, sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+    .page-header { width:100%; background:linear-gradient(135deg,var(--brand),var(--brand-strong)); color:#fff; padding:36px 0; box-shadow:0 10px 30px rgba(0,0,72,.20); }
+    .header-inner { max-width:1440px; margin:0 auto; padding:0 32px; }
+    .page-header h1 { margin:0; font-size:clamp(2rem,3vw,2.7rem); font-weight:700; letter-spacing:-.02em; }
+    .layout { max-width:1440px; margin:0 auto; padding:28px 32px 36px; display:flex; gap:24px; align-items:flex-start; }
+    .sidebar { flex:0 0 var(--sidebar-w); position:sticky; top:20px; }
+    .sidebar-card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+    .sidebar-head { padding:16px 18px; background:#f8fbff; border-bottom:1px solid var(--line); }
+    .sidebar-head h2 { margin:0; font-size:1rem; font-weight:700; color:var(--text); }
+    .sidebar-nav { max-height:calc(100vh - 140px); overflow:auto; padding:10px; scroll-behavior:smooth; }
+    .toc-link { display:grid; grid-template-columns:auto auto 1fr; gap:10px; align-items:center; padding:10px 12px; margin-bottom:6px; border-radius:12px; color:var(--text); text-decoration:none; transition:background .15s ease,border-color .15s ease,transform .15s ease,box-shadow .15s ease; border:1px solid transparent; }
+    .toc-link:hover,.toc-link:focus { background:var(--surface-alt); border-color:var(--line); outline:none; transform:translateY(-1px); }
+    .toc-link.active { background:#eef3ff; border-color:#cdd8ff; box-shadow:inset 3px 0 0 #335cff; }
+    .toc-link.active .toc-text { color:var(--brand); font-weight:600; }
+    .toc-link.active .toc-icon { transform:scale(1.05); }
+    .toc-badge { display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:34px; padding:0 10px; border-radius:999px; background:var(--brand-soft); color:var(--brand); font-weight:700; font-size:.9rem; }
+    .toc-icon { width:24px; text-align:center; font-size:1rem; transition:transform .15s ease; }
+    .toc-text { font-size:.95rem; color:var(--muted); }
+    .content { flex:1 1 auto; min-width:0; }
+    .toolbar { display:grid; grid-template-columns:1fr auto auto; gap:12px; margin-bottom:18px; }
+    .search-box { position:relative; }
+    .search-box input { width:100%; padding:14px 16px 14px 44px; border:1px solid var(--line); background:var(--surface); border-radius:12px; font-size:1rem; color:var(--text); box-shadow:var(--shadow); }
+    .search-box .icon { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--muted); }
+    .btn { border:1px solid var(--line); background:var(--surface); color:var(--text); padding:12px 14px; border-radius:12px; cursor:pointer; font-weight:600; box-shadow:var(--shadow); }
+    .btn:hover { border-color:#bcc7d3; }
+    .panel { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow); margin-bottom:18px; scroll-margin-top:24px; }
+    .panel h2 { margin:0 0 12px; font-size:1.2rem; font-weight:700; color:var(--text); }
+    .accordion { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; margin-bottom:14px; box-shadow:var(--shadow); scroll-margin-top:24px; }
+    .accordion summary { list-style:none; cursor:pointer; padding:16px 18px; display:flex; justify-content:space-between; align-items:center; gap:12px; background:var(--surface); }
+    .accordion summary::-webkit-details-marker { display:none; }
+    .accordion[open] summary { border-bottom:1px solid var(--line); background:#fcfdff; }
+    .summary-left { display:flex; align-items:center; gap:12px; min-width:0; }
+    .badge { display:inline-flex; align-items:center; justify-content:center; min-width:36px; height:36px; padding:0 10px; border-radius:999px; background:var(--brand-soft); color:var(--brand); font-weight:700; font-size:.95rem; }
+    .section-title { font-size:1.05rem; font-weight:600; letter-spacing:-.01em; }
+    .summary-right { color:var(--muted); font-size:1.15rem; transition:transform .15s ease; }
+    .accordion[open] .summary-right { transform:rotate(180deg); }
+    .accordion-content { padding:18px; }
+    .line { display:grid; grid-template-columns:24px 1fr; gap:10px; align-items:start; margin:0 0 12px; line-height:1.6; }
+    .line-icon { width:24px; display:inline-flex; align-items:center; justify-content:center; }
+    .callout-card { padding:12px 14px; border-radius:14px; border:1px solid var(--line); }
+    .callout-card.note { background:var(--note); }
+    .callout-card.callout { background:var(--warn); }
+    .plain-line { margin:0 0 12px; line-height:1.65; }
+    .command-label { font-weight:600; color:var(--text); margin-bottom:8px; }
+    .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:14px; margin:0 0 14px; }
+    table { width:100%; border-collapse:collapse; background:var(--surface); }
+    th,td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:#f8fbff; color:#20314b; position:sticky; top:0; } tr:last-child td { border-bottom:none; }
+    .code-card { border:1px solid #d4dbe7; border-radius:16px; overflow:hidden; margin:0 0 14px; background:var(--surface); }
+    .code-head { background:#f4f8fc; color:#0f3c64; padding:10px 14px; font-weight:700; border-bottom:1px solid #d4dbe7; }
+    pre { margin:0; padding:14px; overflow:auto; background:#0b1220; color:#dbe7ff; font-family:Consolas,'Courier New',monospace; white-space:pre-wrap; word-break:break-word; }
+    a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+    mark { background:#fff2a8; color:inherit; padding:0 2px; border-radius:3px; }
+    .footer { color:var(--muted); font-size:.92rem; margin-top:18px; text-align:center; padding-bottom:8px; }
+    .hidden { display:none !important; }
+    @media (max-width:1100px) { .layout { flex-direction:column; } .sidebar { position:static; width:100%; flex-basis:auto; } .sidebar-nav { max-height:none; } }
+    @media (max-width:740px) { .header-inner,.layout { padding-left:16px; padding-right:16px; } .toolbar { grid-template-columns:1fr; } .page-header { padding:28px 0; } }
+  </style>
+</head>
+<body>
+  <header class="page-header"><div class="header-inner"><h1>GPDM Bites | Refreshments for us</h1></div></header>
+  <main class="layout">
+    <aside class="sidebar" aria-label="Table of contents"><div class="sidebar-card"><div class="sidebar-head"><h2>Table of contents</h2></div><nav class="sidebar-nav" id="sidebarNav"><a class="toc-link active" href="#overview" data-target="overview"><span class="toc-badge">00</span><span class="toc-icon">📄</span><span class="toc-text">Overview</span></a><a class="toc-link" href="#quickservice-and-ticket-handling-guidelines" data-target="quickservice-and-ticket-handling-guidelines"><span class="toc-badge">01</span><span class="toc-icon">🎫</span><span class="toc-text">QuickService &amp; Ticket Handling Guidelines</span></a><a class="toc-link" href="#capability-architects" data-target="capability-architects"><span class="toc-badge">02</span><span class="toc-icon">👥</span><span class="toc-text">Capability Architects</span></a><a class="toc-link" href="#windchill-gpdm-global-communication-recipient-list" data-target="windchill-gpdm-global-communication-recipient-list"><span class="toc-badge">03</span><span class="toc-icon">📬</span><span class="toc-text">Windchill GPDM – Global Communication Recipient List</span></a><a class="toc-link" href="#major-incident-mi-handling" data-target="major-incident-mi-handling"><span class="toc-badge">04</span><span class="toc-icon">🚨</span><span class="toc-text">Major Incident (MI) Handling</span></a><a class="toc-link" href="#environment-usage-guidelines" data-target="environment-usage-guidelines"><span class="toc-badge">05</span><span class="toc-icon">🖥️</span><span class="toc-text">Environment Usage Guidelines</span></a><a class="toc-link" href="#utilities-and-maintenance-scripts" data-target="utilities-and-maintenance-scripts"><span class="toc-badge">06</span><span class="toc-icon">🧰</span><span class="toc-text">Utilities &amp; Maintenance Scripts</span></a><a class="toc-link" href="#server-restart-governance" data-target="server-restart-governance"><span class="toc-badge">07</span><span class="toc-icon">🔄</span><span class="toc-text">Server Restart Governance</span></a><a class="toc-link" href="#gpdm-clean-restart-production" data-target="gpdm-clean-restart-production"><span class="toc-badge">08</span><span class="toc-icon">⚙️</span><span class="toc-text">GPDM Clean Restart – Production</span></a><a class="toc-link" href="#production-alias" data-target="production-alias"><span class="toc-badge">09</span><span class="toc-icon">⌨️</span><span class="toc-text">Production Alias</span></a><a class="toc-link" href="#aws-rdp-access-worker-machines" data-target="aws-rdp-access-worker-machines"><span class="toc-badge">10</span><span class="toc-icon">🖧</span><span class="toc-text">AWS / RDP Access – Worker Machines</span></a><a class="toc-link" href="#publishing-fix-from-db" data-target="publishing-fix-from-db"><span class="toc-badge">11</span><span class="toc-icon">🗄️</span><span class="toc-text">Publishing Fix from DB</span></a><a class="toc-link" href="#process-to-connect-to-qdok-rdp-windows-machine" data-target="process-to-connect-to-qdok-rdp-windows-machine"><span class="toc-badge">12</span><span class="toc-icon">🔐</span><span class="toc-text">Process to Connect to QDOK – RDP Windows Machine</span></a><a class="toc-link" href="#training-server" data-target="training-server"><span class="toc-badge">13</span><span class="toc-icon">🎓</span><span class="toc-text">Training Server</span></a><a class="toc-link" href="#fmcextractpdfprocessingqueue" data-target="fmcextractpdfprocessingqueue"><span class="toc-badge">14</span><span class="toc-icon">📤</span><span class="toc-text">FMCExtractPDFProcessingQueue</span></a><a class="toc-link" href="#qa-worker-connection-commands" data-target="qa-worker-connection-commands"><span class="toc-badge">15</span><span class="toc-icon">🧪</span><span class="toc-text">QA Worker Connection Commands</span></a><a class="toc-link" href="#removing-document-reference-from-part" data-target="removing-document-reference-from-part"><span class="toc-badge">16</span><span class="toc-icon">🧩</span><span class="toc-text">Removing Document Reference from Part</span></a><a class="toc-link" href="#security-patch-deployment-sandbox" data-target="security-patch-deployment-sandbox"><span class="toc-badge">17</span><span class="toc-icon">🛡️</span><span class="toc-text">Security Patch Deployment (Sandbox)</span></a><a class="toc-link" href="#qdok-renaming-guidelines" data-target="qdok-renaming-guidelines"><span class="toc-badge">18</span><span class="toc-icon">📝</span><span class="toc-text">QDOK Renaming Guidelines</span></a><a class="toc-link" href="#standard-qdok-rename-rejection-response" data-target="standard-qdok-rename-rejection-response"><span class="toc-badge">19</span><span class="toc-icon">✉️</span><span class="toc-text">Standard QDOK Rename Rejection Response</span></a></nav></div></aside>
+    <section class="content">
+      <div class="toolbar">
+        <label class="search-box" for="searchInput"><span class="icon">🔎</span><input id="searchInput" type="search" placeholder="Search the runbook (e.g., restart, QDOK, banner, publish)..." /></label>
+        <button class="btn" id="expandAllBtn" type="button">Expand all</button>
+        <button class="btn" id="collapseAllBtn" type="button">Collapse all</button>
+      </div>
+      <section class="panel" id="overview"><h2>Overview</h2><p class="plain-line">This document serves as a Runbook and Knowledge Transfer (KT) guide for GPDM (Windchill) AMS operations, covering support processes, restart procedures, publishing fixes, utilities, and escalation handling.</p></section>
+      <section id="accordions"><details class="accordion" id="quickservice-and-ticket-handling-guidelines" open>
+      <summary>
+        <span class="summary-left"><span class="badge">01</span><span class="section-title">QuickService &amp; Ticket Handling Guidelines</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">If ticket is related to PDoc and particularly related to a publishing issue, please always make sure to tag Song Ha in the ticket.</p><p class="plain-line">Migration Tickets - If any Data Migration tickets are received:</p><p class="plain-line">Data Migration activities are always High Priority activities. Ticket priority may be Low/Medium but priority to be served as High always.</p><p class="line email"><span class="line-icon">📧</span><span><a href="mailto:Neivell.Allan@freseniusmedicalcare.com">Neivell.Allan@freseniusmedicalcare.com</a> is responsible for Migration activities.</span></p><p class="plain-line">Please be sure to discuss in CA call. Inform CAs and Naivell before any investigation is carried out.</p><p class="plain-line">Navel will lead &amp; work on DM activity and we need to support him.</p><p class="plain-line">I need more clarity and will be discussing the same with CA.</p><p class="plain-line">If there is any ticket for object/document/part deletion, please be sure to get it reviewed by CA once.</p><p class="plain-line">Please be sure to tag correct CA on QuickService tickets.</p><p class="line callout callout-card callout"><span class="line-icon">📣</span><span>Each functional group&#x27;s work instructions must be followed separately. For example, for Parts &amp; BOM, Rashmi will provide the specific instructions that need to be adhered to for that particular functional group.</span></p><p class="plain-line">GPDM user, Test_support can be used for any use case validation. Make sure to not modify/delete any data</p></div>
+    </details><details class="accordion" id="capability-architects" open>
+      <summary>
+        <span class="summary-left"><span class="badge">02</span><span class="section-title">Capability Architects</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><div class="table-wrap"><table><thead><tr><th>Song Ha Cong</th><th>PDOC, DPM, Core Know How (for documents), Customer Mgmt. &amp; Offer Mgmt</th></tr></thead><tbody><tr><td>Mike Smith</td><td>MCAD, ECAD</td></tr><tr><td>Rashmi Joshi</td><td>eBOM, P&amp;B Other (Reports, AML, AVL, Material Science, etc.), DHF, Product Costing</td></tr><tr><td>Oliver Ley</td><td>Change Management</td></tr><tr><td>&lt;TBD&gt;</td><td>Variant Management</td></tr><tr><td>Bren Pruitt</td><td>mBOM, MPM, DMR</td></tr><tr><td>Bhumika Parmar</td><td>Design for Reliability, UDI</td></tr><tr><td>Surender Reddy Muddam</td><td>Product Risk Mgmt</td></tr><tr><td>Song Ha Cong</td><td>QDOK (Amy for any ticket related Help)</td></tr><tr><td>Daniel Zenker</td><td>Integrations</td></tr></tbody></table></div><p class="plain-line">Timeline for Ticket resolution</p><p class="line note callout-card note"><span class="line-icon">📝</span><span>Note: The source document includes a “Timeline for Ticket resolution” image. The image itself was not available in the uploaded text extraction, so this HTML version preserves the rest of the searchable content.</span></p></div>
+    </details><details class="accordion" id="windchill-gpdm-global-communication-recipient-list" open>
+      <summary>
+        <span class="summary-left"><span class="badge">03</span><span class="section-title">Windchill GPDM – Global Communication Recipient List</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">Following our discussion with Ravi, please note the communication process for any Windchill GPDM activities (e.g., application restart or stop/start).</p><p class="plain-line">Recipients to include:</p><p class="plain-line">ML Team</p><p class="plain-line">AMS Team</p><p class="plain-line">Jeff</p><p class="plain-line">Ritesh</p><p class="plain-line">CAs</p><p class="plain-line">Prerequisites:</p><p class="plain-line">Publish a BANNER at least 15 minutes before the activity.</p><p class="line callout callout-card callout"><span class="line-icon">📣</span><span>Admin Activity and obtain approval beforehand.</span></p></div>
+    </details><details class="accordion" id="major-incident-mi-handling" open>
+      <summary>
+        <span class="summary-left"><span class="badge">04</span><span class="section-title">Major Incident (MI) Handling</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">MIM Hotline Number: +1-781-699- 4345 For some reason if MIM Hotline number is not reachable, we can contact the below On Call Escalation point of contact.</p><p class="plain-line">Escalations:</p><p class="plain-line">If at all, MIM hotline is unreachable or not responding, then the First escalation point can be contacted:</p><div class="table-wrap"><table><thead><tr><th>Level</th><th>Name</th><th>Mail address</th></tr></thead><tbody><tr><td>1st level</td><td>Priyanka Singh</td><td><a href="mailto:Priyanka.Singh21237c@cognizant.com">Priyanka.Singh21237c@cognizant.com</a> <a href="mailto:priyanka.singh1@freseniusmedicalcare.com">priyanka.singh1@freseniusmedicalcare.com</a></td></tr><tr><td>2nd level</td><td>Sivaram S</td><td><a href="mailto:Sivaram.S2@cognizant.com">Sivaram.S2@cognizant.com</a> <a href="mailto:sivaram.s@freseniusmedicalcare.com">sivaram.s@freseniusmedicalcare.com</a></td></tr><tr><td>3rd level</td><td>Dharani</td><td><a href="mailto:Dharani.Thangaraj@cognizant.com">Dharani.Thangaraj@cognizant.com</a> <a href="mailto:dharani.thangaraj@freseniusmedicalcare.com">dharani.thangaraj@freseniusmedicalcare.com</a></td></tr><tr><td>4th level</td><td>Vineeth Akki</td><td><a href="mailto:Vineeth.Akki@cognizant.com">Vineeth.Akki@cognizant.com</a> <a href="mailto:vineeth.akki@freseniusmedicalcare.com">vineeth.akki@freseniusmedicalcare.com</a></td></tr></tbody></table></div><p class="line steps"><span class="line-icon">✅</span><span>Steps to be taken:</span></p><p class="plain-line">If an end user is reporting a Major Incident inform your IM’s on shift.</p><p class="plain-line">Create a new Incident and apply the Major Incident Template</p><p class="plain-line">Gather all the information within the Template and assign the ticket to the correct resolving team.</p><p class="line callout callout-card callout"><span class="line-icon">📣</span><span>Call Major Incident Management team (MIM Team) +1-781-699- 4345 and inform them about this potential outage</span></p><p class="plain-line">Add work notes &quot;MIM informed&quot; in the ticket.</p></div>
+    </details><details class="accordion" id="environment-usage-guidelines" open>
+      <summary>
+        <span class="summary-left"><span class="badge">05</span><span class="section-title">Environment Usage Guidelines</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">QA Server – Can be used for troubleshooting purposes. No data or configuration-related changes are to be made within the application.</p><p class="plain-line">Dev Server – Can be used to reproduce issues. Data changes are allowed, but configuration-related changes in the application should not be performed. Investigations related to workers or publishing should be carried out here.</p><p class="plain-line">Devel14a – Local instance for AMS use. AMS team can utilize this server extensively for testing/experimentation. Currently proposed to be rehosted from the Dev server. AMS can back up the application, use it for the requirement, and revert.</p></div>
+    </details><details class="accordion" id="utilities-and-maintenance-scripts" open>
+      <summary>
+        <span class="summary-left"><span class="badge">06</span><span class="section-title">Utilities &amp; Maintenance Scripts</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">WTPartDescribeLinkRemover, WTPartReferenceLinkRemover, and IBA update utilities executed from S3-based CSV inputs.</p><p class="plain-line"><a href="https://dev.azure.com/FreseniusMedicalCare/PDM%20-%20Product%20Data%20Management/_wiki/wikis/PDM.wiki/7003/GPDM-Admin-Utilities" target="_blank" rel="noopener">GPDM Admin Utilities - Overview</a></p><p class="plain-line"><a href="https://dev.azure.com/FreseniusMedicalCare/PDM%20-%20Product%20Data%20Management/_workitems/edit/231875" target="_blank" rel="noopener">Task 231875 Develop admin utility to update IBA values</a></p></div>
+    </details><details class="accordion" id="server-restart-governance" open>
+      <summary>
+        <span class="summary-left"><span class="badge">07</span><span class="section-title">Server Restart Governance</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">Allowed components/actions (asynchronous, not impacting live transactions/users):</p><p class="plain-line">Worker Agents – stop/start</p><p class="plain-line">Dedicated MS for WVS (publisher): only killing process is allowed if there is reasoning. New process initiated automatically by SM. Do not shutdown entire Windchill on the node.</p><p class="plain-line">BGMS: only killing process allowed if there is reasoning. New process initiated automatically by SM. Do not shutdown entire Windchill on the node.</p><p class="plain-line">Indexing related process – stop/start</p><p class="plain-line">Integration Runtime for Thingworx – stop/start</p><p class="plain-line">Increasing memory/disk space</p><p class="line note callout-card"><span class="line-icon">📝</span><span>Note: Issue and action to be logged in the system maintenance excel log file in blue.space.</span></p><p class="plain-line">Shutdown/Restart of server components directly impacting live user transactions or where configuration changes are needed (other than memory increases):</p><p class="line callout callout-card callout"><span class="line-icon">📣</span><span>Approval for impacting restarts must come from Ravi or Jeff. EU non-working hours: Olivier de Bruijn / Natalie Stanyon.</span></p><p class="plain-line">*Try avoiding restart as much as possible — use GPDM_Windchill_PROD_JCONSOLE_Connect (blue.space KB) for targeted killing of a java thread causing instability (high memory/CPU/etc.).</p><p class="plain-line">FG Method Servers</p><p class="plain-line">Server Manager</p><p class="plain-line">RDS</p><p class="plain-line">AWS instances for Windchill cluster nodes (Master and slaves)</p><p class="line note callout-card note"><span class="line-icon">📝</span><span>Note: Admin Activity is needed in ADO for approvals. If unable to get response from Approvers (within ~1 hr), proceed with restart and seek approval post event.</span></p></div>
+    </details><details class="accordion" id="gpdm-clean-restart-production" open>
+      <summary>
+        <span class="summary-left"><span class="badge">08</span><span class="section-title">GPDM Clean Restart – Production</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">Admin activity to be created for GPDM Production restart.</p><p class="line callout callout-card callout"><span class="line-icon">📣</span><span>Secure Approval on Admin Activity.</span></p><p class="plain-line">Set up Banner in Windchill GPDM (involves more steps; can be explained separately).</p><p class="plain-line">Send out a Global communication – Refer the email sent by Doug.</p><p class="plain-line">Connect to Master, Node1 &amp; Node2 from AWS Session Manager.</p><p class="plain-line">Check Active User Count from Server Status page.</p><p class="plain-line command-label">Stop services in Node2</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>ant -f ${WT_HOME}/wtSafeArea/build/build.xml stop.service.all clean.cache.all</pre></div><p class="plain-line command-label">Stop services in Node1</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>ant -f ${WT_HOME}/wtSafeArea/build/build.xml stop.service.all clean.cache.all</pre></div><p class="line note callout-card note"><span class="line-icon">📝</span><span>Note: After scripts run on both nodes, run Checkps in both nodes to verify all processes (MS/SM) are stopped.</span></p><p class="plain-line command-label">Stop services in Master</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>ant -f ${WT_HOME}/wtSafeArea/build/build.xml stop.service.all clean.cache.all</pre></div><p class="line note callout-card note"><span class="line-icon">📝</span><span>Note: Run Checkps on Master to verify all processes (MS/SM) are stopped.</span></p><p class="plain-line command-label">Start services in Master</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>ant -f ${WT_HOME}/wtSafeArea/build/build.xml start.service.all</pre></div><p class="plain-line command-label">Clear the banner</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>bannerclear from Node1 and Node2.</pre></div><p class="line note callout-card note"><span class="line-icon">📝</span><span>Note: Run Checkps and validate logs in Master node to verify all processes (MS/SM) are started.</span></p><p class="plain-line command-label">Start services in Node1</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>ant -f ${WT_HOME}/wtSafeArea/build/build.xml start.service.all</pre></div><p class="plain-line command-label">Start services in Node2</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>ant -f ${WT_HOME}/wtSafeArea/build/build.xml start.service.all</pre></div><p class="line note callout-card note"><span class="line-icon">📝</span><span>Note: Run Checkps on Node1 and Node2 to verify all processes (MS/SM) are started.</span></p><p class="plain-line">Validate Server Status page and look at all the numbers.</p><p class="plain-line">Validate the Vault (Main Vault =&gt; DefaultVault); make sure all are valid.</p><p class="plain-line">Start all the Workers machines.</p><p class="plain-line">Send out a Global communication – Refer the email sent by Nitin.</p><p class="plain-line">Update the Admin Activity and mark it Resolved.</p></div>
+    </details><details class="accordion" id="production-alias" open>
+      <summary>
+        <span class="summary-left"><span class="badge">09</span><span class="section-title">Production Alias</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>alias apacheconf=&#x27;cd /opt/ptc/Windchill_13.0/HTTPServer/conf&#x27;
+alias apachelogs=&#x27;cd /opt/ptc/Windchill_13.0/HTTPServer/logs&#x27;
+alias bannerclear=&#x27;cp -p /opt/ptc/Windchill_13.0/Windchill/codebase/netmarkets/jsp/util/banner_original.txt /opt/ptc/Windchill_13.0/Windchill/codebase/netmarkets/jsp/util/banner.txt&#x27;
+alias bannerdir=&#x27;cd /opt/ptc/Windchill_13.0/Windchill/codebase/netmarkets/jsp/util&#x27;
+alias bannerdown=&#x27;cp -p /opt/ptc/Windchill_13.0/Windchill/codebase/netmarkets/jsp/util/banner_downtime.txt /opt/ptc/Windchill_13.0/Windchill/codebase/netmarkets/jsp/util/banner.txt&#x27;
+alias bannerqdok=&#x27;cp -p /opt/ptc/Windchill_13.0/Windchill/codebase/netmarkets/jsp/util/banner_QDOK.txt /opt/ptc/Windchill_13.0/Windchill/codebase/netmarkets/jsp/util/banner.txt&#x27;
+alias cdlogs=&#x27;cd /opt/ptc/Windchill_13.0/Windchill/logs&#x27;
+alias cdpww=&#x27;cd /opt/ptc/Windchill_13.0/Windchill&#x27;
+alias checkps=&#x27;/opt/bin/checkps.sh&#x27;
+alias cp=&#x27;cp -i&#x27;
+alias db.prop=&#x27;vi -R /opt/ptc/Windchill_13.0/Windchill/db/db.properties&#x27;
+alias egrep=&#x27;egrep --color=auto&#x27;
+alias fgrep=&#x27;fgrep --color=auto&#x27;
+alias grep=&#x27;grep --color=auto&#x27;
+alias h=&#x27;history 25&#x27;
+alias infoecacheclean=&#x27;rm -rf /opt/ptc/Windchill_13.0/Windchill/tasks/codebase/com/infoengine/compiledTasks&#x27;
+alias l.=&#x27;ls -d .* --color=auto&#x27;
+alias ldap=&#x27;sudo /opt/ptc/Windchill_13.0/WindchillDS/server/bin/control-panel&#x27;
+alias ll=&#x27;ls -l --color=auto&#x27;
+alias ls=&#x27;ls --color=auto&#x27;
+alias mv=&#x27;mv -i&#x27;
+alias rm=&#x27;rm -i&#x27;
+alias smj=&#x27;/opt/ptc/Windchill_13.0/Windchill/bin/windchill wt.util.jmx.SMJconsole&#x27;
+alias sverify=&#x27;/opt/bin/server_verify.sh&#x27;
+alias tomcacheclean=&#x27;rm -rf /opt/ptc/Windchill_13.0/Windchill/tomcat/instances&#x27;
+alias vir=&#x27;vi -R&#x27;
+alias wcshell=&#x27;/opt/ptc/Windchill_13.0/Windchill/bin/windchill shell&#x27;
+alias wfcacheclean=&#x27;rm -rf /opt/ptc/Windchill_13.0/Windchill/codebase/wt/workflow/expr&#x27;
+alias which=&#x27;alias | /usr/bin/which --tty-only --read-alias --show-dot --show-tilde&#x27;
+alias windbin=&#x27;cd /opt/ptc/Windchill_13.0/Windchill/bin&#x27;
+alias wt.prop=&#x27;vi -R /opt/ptc/Windchill_13.0/Windchill/codebase/wt.properties&#x27;
+alias xzegrep=&#x27;xzegrep --color=auto&#x27;
+alias xzfgrep=&#x27;xzfgrep --color=auto&#x27;
+alias xzgrep=&#x27;xzgrep --color=auto&#x27;
+alias zegrep=&#x27;zegrep --color=auto&#x27;
+alias zfgrep=&#x27;zfgrep --color=auto&#x27;
+alias zgrep=&#x27;zgrep --color=auto&#x27;</pre></div></div>
+    </details><details class="accordion" id="aws-rdp-access-worker-machines" open>
+      <summary>
+        <span class="summary-left"><span class="badge">10</span><span class="section-title">AWS / RDP Access – Worker Machines</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="line link"><span class="line-icon">🔗</span><span>Launch AWS Portal: <a href="https://d-99672be81d.awsapps.com/start/#/?tab=accounts" target="_blank" rel="noopener">https://d-99672be81d.awsapps.com/start/#/?tab=accounts</a></span></p><p class="plain-line">Launch PowerShell from Windows Machine.</p><p class="plain-line">Navigate to Access key for the respective environment, click on PowerShell and copy the &#x27;Set AWS environment variables&#x27; value and paste in PowerShell session. Example variables (rotate frequently):</p><p class="plain-line">$Env:AWS_ACCESS_KEY_ID=&quot;&lt;ACCESS_KEY&gt;&quot;</p><p class="plain-line">$Env:AWS_SECRET_ACCESS_KEY=&quot;&lt;SECRET_KEY&gt;&quot;</p><p class="plain-line">$Env:AWS_SESSION_TOKEN=&quot;&lt;SESSION_TOKEN&gt;&quot;</p><p class="plain-line">Run RDP/VNC command:</p><p class="plain-line">Production Office worker (Windows RDP):</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>aws ssm start-session --target i-011e9b3ad67d696f9 --document-name AWS-StartPortForwardingSession --parameters portNumber=3389,localPortNumber=5589</pre></div><p class="plain-line">(Instance ID can be fetched from Session Manager.)</p><p class="plain-line">Launch RDP, type &#x27;localhost:5589&#x27; and click connect. Credentials: Administrator / **** (retrieve from Secret Manager).</p></div>
+    </details><details class="accordion" id="publishing-fix-from-db" open>
+      <summary>
+        <span class="summary-left"><span class="badge">11</span><span class="section-title">Publishing Fix from DB</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">If a publishing job is stuck in Executing state:</p><p class="plain-line">Go to the publisher processing the job (CAD/Office) and verify there are no prompts or system errors.</p><p class="plain-line">If none, verify that the document has passed the timeout value.</p><p class="plain-line">If timeout has passed and the job is still executing, go to the database and run:</p><p class="plain-line command-label">3a) PROD</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>sqlplus fmc_prod/fmc_prod@windchill-prod-rds.cuspr3i0bitd.eu-central-1.rds.amazonaws.com:1521/ORACLEDB</pre></div><p class="plain-line command-label">3a) QA</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>sqlplus fmc_qa/FMC_QA@windchill-qa-rds.cvk518vytl8k.eu-central-1.rds.amazonaws.com:1521/ORACLEDB</pre></div><p class="plain-line command-label">3b)</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>select entryNumber, codec5, ida2a2 from queueentry where codec5=&#x27;EXECUTING&#x27; AND targetClass=&#x27;com.ptc.wvs.server.publish.PublishJob&#x27; AND entryNumber=&lt;Job id from WVS Job Monitor&gt;;</pre></div><p class="plain-line command-label">3c)</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>UPDATE QUEUEENTRY set codec5=&#x27;NONEVENTFAILED&#x27; where ida2a2=&#x27;&lt;ida2a2 from above&gt;&#x27; and codec5=&#x27;EXECUTING&#x27;;</pre></div><p class="plain-line command-label">3d)</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>commit;</pre></div><p class="plain-line">If publishing jobs are not moving forward after the SQL change, restart the BackgroundWVS process.</p></div>
+    </details><details class="accordion" id="process-to-connect-to-qdok-rdp-windows-machine" open>
+      <summary>
+        <span class="summary-left"><span class="badge">12</span><span class="section-title">Process to Connect to QDOK – RDP Windows Machine</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="line link"><span class="line-icon">🔗</span><span>Launch AWS Portal: <a href="https://d-99672be81d.awsapps.com/start/#/?tab=accounts" target="_blank" rel="noopener">https://d-99672be81d.awsapps.com/start/#/?tab=accounts</a></span></p><p class="plain-line">Launch PowerShell from Windows Machine.</p><p class="plain-line">Navigate to Access key for the respective environment, click PowerShell and copy &#x27;Set AWS environment variables&#x27; value into PowerShell session.</p><p class="plain-line command-label">Run</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>aws ssm start-session --target i-0554273e29396faea --document-name AWS-StartPortForwardingSession --parameters portNumber=3389,localPortNumber=5555</pre></div><p class="plain-line">Launch RDP, type &#x27;localhost:5555&#x27; and click connect. Password: **** (retrieve from Secret Manager).</p></div>
+    </details><details class="accordion" id="training-server" open>
+      <summary>
+        <span class="summary-left"><span class="badge">13</span><span class="section-title">Training Server</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="line link"><span class="line-icon">🔗</span><span>URL: <a href="https://training.wc-dev.gpdm-euc1.fmcglobal.net/Windchill" target="_blank" rel="noopener">https://training.wc-dev.gpdm-euc1.fmcglobal.net/Windchill</a></span></p><p class="plain-line">Credentials: AMS_Support / ctsadmin</p></div>
+    </details><details class="accordion" id="fmcextractpdfprocessingqueue" open>
+      <summary>
+        <span class="summary-left"><span class="badge">14</span><span class="section-title">FMCExtractPDFProcessingQueue</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">The FMCExtractPDFProcessingQueue is responsible for extracting data from Windchill to the QDOK Reader. This queue runs every 1 hour.</p><p class="line link"><span class="line-icon">🔗</span><span>Link: <a href="https://plm.wc.gpdm-euc1.fmcglobal.net/PDFExtract/" target="_blank" rel="noopener">https://plm.wc.gpdm-euc1.fmcglobal.net/PDFExtract/</a></span></p></div>
+    </details><details class="accordion" id="qa-worker-connection-commands" open>
+      <summary>
+        <span class="summary-left"><span class="badge">15</span><span class="section-title">QA Worker Connection Commands</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line command-label">QA - Office Worker</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>aws ssm start-session --target i-00b49fe85c920bd54 --document-name AWS-StartPortForwardingSession --parameters portNumber=3389,localPortNumber=5589</pre></div><p class="plain-line command-label">QA - CAD Worker</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>aws ssm start-session --target i-0aa2551ce878d944c --document-name AWS-StartPortForwardingSession --parameters portNumber=3389,localPortNumber=5590</pre></div></div>
+    </details><details class="accordion" id="removing-document-reference-from-part" open>
+      <summary>
+        <span class="summary-left"><span class="badge">16</span><span class="section-title">Removing Document Reference from Part</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="line steps"><span class="line-icon">✅</span><span>Steps to execute the WTPartReferenceLinkRemoval utility:</span></p><p class="plain-line">Copy file to s3 bucket</p><p class="plain-line">Login to AWS Windchill</p><p class="plain-line">Navigate to /opt/ptc/Windchill_13.0/Windchill/FMC_load_files</p><p class="plain-line command-label">Run command</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>aws s3 cp s3://fmcgpdm-windchill-prod/GPDM-26961/DOP-0000347704.csv .</pre></div><p class="plain-line command-label">Preview Command to see if there are any objects</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>windchill ext.fresenius.migtool.updater.WTPartDescribeLinkRemover -u &lt;username&gt; -p &lt;password&gt; &lt;filename&gt;.csv -type wt.doc.WTDocument -preview</pre></div><p class="plain-line command-label">Run command</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>windchill ext.fresenius.migtool.updater.WTPartDescribeLinkRemover -u &lt;username&gt; -p &lt;password&gt; &lt;filename&gt;.csv -type wt.doc.WTDocument</pre></div><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>windchill ext.fresenius.migtool.updater.WTPartReferenceLinkRemover -u &lt;username&gt; -p &lt;password&gt; &lt;filename&gt;.csv -type wt.doc.WTDocument -preview</pre></div><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>windchill ext.fresenius.migtool.updater.WTPartReferenceLinkRemover -u &lt;username&gt; -p &lt;password&gt; &lt;filename&gt;.csv -type wt.doc.WTDocument ( to remove part linkage if document is linked under references document )</pre></div><p class="plain-line">A document can be referenced with a Part at below places -</p><p class="plain-line">Described By Documents (This link is called WTPartDescribeLink)</p><p class="plain-line">Reference Documents (This link is called WTPartReferenceLink)</p><p class="plain-line">Utilities to remove the links are:</p><p class="plain-line">For Described By Documents, It is WTPartDescribeLinkRemover</p><p class="plain-line">For Reference Documents, It is WTPartReferenceLinkRemover</p><p class="line steps"><span class="line-icon">✅</span><span>Steps to execute the WTPartDescribeLinkRemoval utility:</span></p><p class="plain-line">Copy file to s3 bucket</p><p class="plain-line">Login to AWS Windchill</p><p class="plain-line">Navigate to /opt/ptc/Windchill_13.0/Windchill/FMC_load_files</p><p class="plain-line command-label">Run command to copy file from S3 to Server machine</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>aws s3 cp s3://fmcgpdm-windchill-prod/GPDM-26961/DOP-0000347704.csv .</pre></div><p class="plain-line command-label">Preview Command to see if there are any objects</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>windchill ext.fresenius.migtool.updater.WTPartDescribeLinkRemover -u &lt;username&gt; -p &lt;password&gt; &lt;filename&gt;.csv -type wt.doc.WTDocument -preview</pre></div><p class="plain-line command-label">Run the command to remove links</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>windchill ext.fresenius.migtool.updater.WTPartDescribeLinkRemover -u &lt;username&gt; -p &lt;password&gt; &lt;filename&gt;.csv -type wt.doc.WTDocument</pre></div><p class="line steps"><span class="line-icon">✅</span><span>Steps to execute the WTPartReferenceLinkRemoval utility</span></p><p class="plain-line">Copy file to s3 bucket</p><p class="plain-line">Login to AWS Windchill</p><p class="plain-line">Navigate to /opt/ptc/Windchill_13.0/Windchill/FMC_load_files</p><p class="plain-line command-label">Run command to copy file from S3 to Server machine</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>aws s3 cp s3://fmcgpdm-windchill-prod/GPDM-26961/DOP-0000347704.csv .</pre></div><p class="plain-line command-label">Preview Command to see if there are any objects</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>windchill ext.fresenius.migtool.updater.WTPartReferenceLinkRemover -u &lt;username&gt; -p &lt;password&gt; &lt;filename&gt;.csv -type wt.doc.WTDocument -preview</pre></div><p class="plain-line command-label">Run the command to remove links</p><div class="code-card"><div class="code-head">💻 Command / Script</div><pre>windchill ext.fresenius.migtool.updater.WTPartReferenceLinkRemover -u &lt;username&gt; -p &lt;password&gt; &lt;filename&gt;.csv -type wt.doc.WTDocument</pre></div><p class="plain-line">The Process has been documented and stored in Knowledge Base: Removing Document reference from Part.docx</p></div>
+    </details><details class="accordion" id="security-patch-deployment-sandbox" open>
+      <summary>
+        <span class="summary-left"><span class="badge">17</span><span class="section-title">Security Patch Deployment (Sandbox)</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">---Copy unzipped Patch file to WT_HOME location mkdir /opt/staging/temp_patch aws s3 cp s3://fmcgpdm-windchill-sbx/Nitin/MED-61006-CD-130_13-0-2-11_13-0-XXXX-CPSXB2-TPATCH.zip /opt/staging/temp_patch cd /opt/staging/temp_patch/ unzip MED-61006-CD-130_13-0-2-11_13-0-XXXX-CPSXB2-TPATCH.zip cp 13.0-XXXX_CPSXB2.jar /opt/ptc/Windchill_13.0/Windchill</p><p class="plain-line">---Stopping Windchill and Apache services cd /opt/ptc/Windchill_13.0/HTTPServer/bin ./apachectl stop cd /opt/ptc/Windchill_13.0/Windchill windchill stop ant -f wtSafeArea/build/build.xml clean.cache.all</p><p class="plain-line">---Backup Windchill and HTTPServer folder cp -r /opt/ptc/Windchill_13.0/Windchill /opt/ptc/Windchill_13.0/Windchill_09Apr26 cp -r /opt/ptc/Windchill_13.0/HTTPServer /opt/ptc/Windchill_13.0/HTTPServer_09Apr26</p><p class="plain-line">---Deploying Security Patch java -jar 13.0-XXXX_CPSXB2.jar --safeAreaInstall /opt/ptc/Windchill_13.0/Windchill java -jar 13.0-XXXX_CPSXB2.jar --completeSafeAreaInstall /opt/ptc/Windchill_13.0/Windchill</p><p class="plain-line">---Starting Windchill and Apache services cd /opt/ptc/Windchill_13.0/HTTPServer/bin ./apachectl start cd /opt/ptc/Windchill_13.0/Windchill windchill start</p><p class="plain-line">---Validate the patch deployment Windchill version (It should display updated patch)</p><p class="plain-line">Patches: Label Description Install Date ----- ----------- ------------ 13.0-XXXX_CPSXB2 13.0-XXXX_CPSXB2 [Seq 05] Apr 9, 2026, 3:33:17 PM</p></div>
+    </details><details class="accordion" id="qdok-renaming-guidelines" open>
+      <summary>
+        <span class="summary-left"><span class="badge">18</span><span class="section-title">QDOK Renaming Guidelines</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">Documents can only be renamed at the following states:</p><p class="plain-line">Draft</p><p class="plain-line">Final Draft</p><p class="plain-line">In Review</p><p class="line callout callout-card callout"><span class="line-icon">📣</span><span>In Approval</span></p><p class="plain-line">If a support ticket is created for any other State, please respond with the standard message and close the ticket.</p></div>
+    </details><details class="accordion" id="standard-qdok-rename-rejection-response" open>
+      <summary>
+        <span class="summary-left"><span class="badge">19</span><span class="section-title">Standard QDOK Rename Rejection Response</span></span>
+        <span class="summary-right">▾</span>
+      </summary>
+      <div class="accordion-content"><p class="plain-line">Dear (add person name),</p><p class="line callout callout-card callout"><span class="line-icon">📣</span><span>The Support Team cannot rename the document. The Global Document Control department has communicated that any document that is already in approved or effective state needs to go through the change control process / document control (at local level) for performing a title update. The rationale is that a title change impacts all previous revisions of a document, and it is important to maintain the traceability of such a change. This is not possible with an administrative change.</span></p><p class="line email"><span class="line-icon">📧</span><span>If you have any additional questions relating to the renaming process defined by the business, please contact <a href="mailto:CDO@freseniusmedicalcare.com">CDO@freseniusmedicalcare.com</a>.</span></p></div>
+    </details></section>
+      <div class="footer">Generated from the uploaded DOCX for simple browser-based viewing and search.</div>
+    </section>
+  </main>
+  <script>
+    const searchInput = document.getElementById('searchInput');
+    const accordions = Array.from(document.querySelectorAll('.accordion'));
+    const expandAllBtn = document.getElementById('expandAllBtn');
+    const collapseAllBtn = document.getElementById('collapseAllBtn');
+    const tocLinks = Array.from(document.querySelectorAll('.toc-link'));
+    const sections = [document.getElementById('overview'), ...accordions];
+    function removeMarks(el) { const marks = el.querySelectorAll('mark'); marks.forEach(mark => { const text = document.createTextNode(mark.textContent); mark.replaceWith(text); }); el.normalize(); }
+    function highlightInNode(node, term) { if (!node || !term) return; const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null); const textNodes = []; while (walker.nextNode()) textNodes.push(walker.currentNode); textNodes.forEach(textNode => { const value = textNode.nodeValue; const idx = value.toLowerCase().indexOf(term); if (idx >= 0 && textNode.parentNode && textNode.parentNode.nodeName !== 'SCRIPT' && textNode.parentNode.nodeName !== 'STYLE') { const before = document.createTextNode(value.slice(0, idx)); const mark = document.createElement('mark'); mark.textContent = value.slice(idx, idx + term.length); const after = document.createTextNode(value.slice(idx + term.length)); const frag = document.createDocumentFragment(); if (before.nodeValue) frag.appendChild(before); frag.appendChild(mark); if (after.nodeValue) frag.appendChild(after); textNode.parentNode.replaceChild(frag, textNode); } }); }
+    function setActiveLink(targetId) { let activeLink = null; tocLinks.forEach(link => { const isActive = link.dataset.target === targetId; link.classList.toggle('active', isActive); if (isActive) activeLink = link; }); if (activeLink) activeLink.scrollIntoView({ block:'nearest', behavior:'smooth' }); }
+    const observer = new IntersectionObserver((entries) => { const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio); if (visible.length) setActiveLink(visible[0].target.id); }, { rootMargin:'-20% 0px -60% 0px', threshold:[0.1, 0.25, 0.5, 0.75] });
+    sections.forEach(section => { if (section) observer.observe(section); });
+    tocLinks.forEach(link => link.addEventListener('click', () => setActiveLink(link.dataset.target)));
+    function filterSections() { const term = searchInput.value.trim().toLowerCase(); accordions.forEach(acc => { removeMarks(acc); const text = acc.textContent.toLowerCase(); const match = !term || text.includes(term); acc.classList.toggle('hidden', !match); if (match && term) { acc.open = true; highlightInNode(acc.querySelector('.accordion-content'), term); highlightInNode(acc.querySelector('summary'), term); } }); }
+    searchInput.addEventListener('input', filterSections);
+    expandAllBtn.addEventListener('click', () => accordions.forEach(a => a.open = true));
+    collapseAllBtn.addEventListener('click', () => accordions.forEach(a => a.open = false));
+  </script>
+</body>
+</html>
