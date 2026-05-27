@@ -180,8 +180,14 @@ class RAGEngine:
     def load_models(self, quantization_mode="4bit"):
         has_cuda = torch.cuda.is_available()
         
+        # Check for Gemini API mode
+        if self.model_name.startswith("gemini-"):
+            print(f"[+] Using Google Gemini API: {self.model_name}")
+            self.model = "api"
+            self.is_gguf = False
+            self.tokenizer = None
         # Check for GGUF mode
-        if "gguf" in self.model_name.lower() or self.model_name.endswith(".gguf"):
+        elif "gguf" in self.model_name.lower() or self.model_name.endswith(".gguf"):
             if not HAS_LLAMA_CPP:
                 raise ImportError("Please install llama-cpp-python to use GGUF models: pip install llama-cpp-python")
             
@@ -367,7 +373,7 @@ class RAGEngine:
         metrics["rerank_time"] = time.time() - start
         return final_results, metrics
 
-    def generate_stream(self, question, context, history, max_tokens=150):
+    def generate_stream(self, question, context, history, max_tokens=150, api_key=None):
         system_msg = (
             "You are an AI assistant. Answer the question using ONLY the provided context.\n"
             "CRITICAL: Use in-text citations like [1], [2] to indicate which part of the context your answer came from.\n"
@@ -375,6 +381,29 @@ class RAGEngine:
             "If the answer is not in the context, reply exactly with 'Not found.' Do not add explanations."
         )
         
+        if self.model_name.startswith("gemini-"):
+            import google.generativeai as genai
+            if not api_key:
+                yield "Error: Google API Key is required for Gemini models."
+                return
+            
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(self.model_name)
+            
+            prompt = system_msg + "\n\n"
+            for entry in history[-2:]:
+                prompt += f"User: {entry['user']}\nAssistant: {entry['bot']}\n"
+            prompt += f"User: {question}\nAssistant:"
+            
+            try:
+                response = model.generate_content(prompt, stream=True)
+                for chunk in response:
+                    if chunk.text:
+                        yield chunk.text
+            except Exception as e:
+                yield f"\n[API Error: {str(e)}]"
+            return
+
         messages = [{"role": "system", "content": system_msg}]
         for entry in history[-2:]:
             messages.append({"role": "user", "content": entry["user"]})

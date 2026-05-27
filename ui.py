@@ -34,7 +34,7 @@ st.markdown("""
 # --- INITIALIZE SESSION STATE ---
 # --- INITIALIZE SESSION STATE ---
 if "current_model" not in st.session_state:
-    st.session_state["current_model"] = "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
+    st.session_state["current_model"] = "microsoft/Phi-3.5-mini-instruct"
 
 # --- CACHED ENGINE INITIALIZATION ---
 @st.cache_resource
@@ -52,13 +52,10 @@ with st.sidebar:
     
     st.subheader("🤖 Model Selection")
     model_options = [
-        "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
-        "HuggingFaceTB/SmolLM2-135M-Instruct",
-        "HuggingFaceTB/SmolLM2-360M-Instruct",
-        "Qwen/Qwen2.5-0.5B-Instruct",
-        "Qwen/Qwen2.5-1.5B-Instruct",
+        "microsoft/Phi-3.5-mini-instruct",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
         "meta-llama/Llama-3.2-1B-Instruct",
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         "microsoft/phi-2",
         "Custom Model..."
     ]
@@ -66,14 +63,21 @@ with st.sidebar:
     selected_base = st.selectbox("Choose a model", model_options, 
                                  index=model_options.index(st.session_state["current_model"]) if st.session_state["current_model"] in model_options else 0)
     
-    # 🆕 GGUF vs Standard Indicators
-    is_gguf = "gguf" in selected_base.lower() or selected_base.endswith(".gguf")
-    if is_gguf:
-        st.success("⚡ **GGUF (Fast CPU Mode)**")
-        st.caption("Running highly optimized C++ inference.")
+    # 🆕 GGUF vs API vs Standard Indicators
+    if selected_base.startswith("gemini-"):
+        st.success("☁️ **Google Gemini API**")
+        st.caption("Fast and powerful cloud inference.")
+        api_key = st.text_input("Google API Key", type="password")
+        st.session_state["google_api_key"] = api_key
     else:
-        st.info("🌐 **Standard (Normal Mode)**")
-        st.caption("Running standard Transformers inference.")
+        st.session_state["google_api_key"] = None
+        is_gguf = "gguf" in selected_base.lower() or selected_base.endswith(".gguf")
+        if is_gguf:
+            st.success("⚡ **GGUF (Fast CPU Mode)**")
+            st.caption("Running highly optimized C++ inference.")
+        else:
+            st.info("🌐 **Standard (Normal Mode)**")
+            st.caption("Running standard Transformers inference.")
     
     final_model_name = selected_base
     if selected_base == "Custom Model...":
@@ -235,7 +239,7 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
                 streamer = engine.generate_stream(prompt, context, [
                     {"user": m["content"], "bot": st.session_state["messages"][i+1]["content"]} 
                     for i, m in enumerate(st.session_state["messages"][:-1]) if m["role"] == "user"
-                ])
+                ], api_key=st.session_state.get("google_api_key"))
                 
                 start_time = time.time()
                 for new_text in streamer:
