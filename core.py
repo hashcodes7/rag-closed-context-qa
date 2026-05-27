@@ -430,10 +430,14 @@ class RAGEngine:
     def generate_stream(self, question, context, history, max_tokens=150, api_key=None):
         system_msg = (
             "You are a corporate chatbot for Fresenius Medical Care made by Harsh Verma from Cognizant Technology Solutions. Answer the user's question using ONLY the provided context.\n"
-            "Respond in a professional, concise, and corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
+            "If the answer exists in the context, respond with the full relevant text from the context without omitting sentences, and preserve contact names, email addresses, and priority details.\n"
+            "Respond in a professional, corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
+            "you can relate the meanings of words in the question to the context, but do not add any information that is not explicitly present in the context. If the context contains contact information or priority details, include them in your answer if relevant.\n"
+            "
             "CRITICAL: Use in-text citations like [1], [2] to indicate which part of the context your answer came from when you reference it.\n"
             f"<context>\n{context}\n</context>\n"
             "If the answer is not contained in the provided context, reply exactly with \"I think this info isnt yet added to my knowledge base.\" Do not add explanations, speculation, or additional content."
+            "if you are going to answer  \"I think this info isnt yet added to my knowledge base.\", but a answer can be inferred by relating the meanings of words in the question to the context, then you can answer with the relevant information from the context that can be related to the question, but do not add any information that is not explicitly present in the context."
         )
         
         if self.model_name.startswith("gemini-"):
