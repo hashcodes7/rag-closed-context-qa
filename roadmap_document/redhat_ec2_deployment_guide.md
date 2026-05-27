@@ -7,17 +7,27 @@ This document outlines the step-by-step process for deploying the RAG Chatbot on
 ## Prerequisites
 
 1. **AWS EC2 Instance**: A running EC2 instance using the Red Hat Enterprise Linux AMI.
-2. **Key Pair**: The `.pem` or `.ppk` file used to SSH into your instance.
+2. **Key Pair (Optional)**: The `.pem` or `.ppk` file used to SSH into your instance. (Not required if using AWS SSM).
 3. **Security Group**: Ensure your EC2 Security Group allows inbound traffic on:
-   - **Port 22** (SSH) from your IP.
+   - **Port 22** (SSH) from your IP. (Not required if using AWS SSM).
    - **Port 80** (HTTP) from Anywhere (`0.0.0.0/0`).
 
 ---
 
 ## Step 1: Connect to your EC2 Instance
 
-Open your local terminal (or PowerShell) and connect to the instance via SSH. Red Hat instances default to the `ec2-user` username.
+### Option A: AWS Systems Manager (SSM) Session Manager (Recommended)
+This is the most secure method, requiring no open SSH ports or `.pem` keys.
+1. Open the AWS EC2 Console.
+2. Select your instance and click **Connect**.
+3. Choose the **Session Manager** tab and click **Connect** to open a browser-based terminal.
+4. Once connected, run the following command to switch to the standard user account:
+   ```bash
+   sudo su - ec2-user
+   ```
 
+### Option B: Traditional SSH
+Open your local terminal (or PowerShell) and connect to the instance via SSH.
 ```bash
 ssh -i /path/to/your-key.pem ec2-user@<your-ec2-public-ip>
 ```
@@ -45,15 +55,23 @@ sudo dnf groupinstall -y "Development Tools"
 
 You need to get your local project files onto the EC2 instance.
 
-### Option A: Using Git (Recommended)
-If your code is hosted on GitHub/GitLab:
+### Option A: Using Git (Highly Recommended)
+Regardless of how you connected (SSM or SSH), the easiest way is to clone your repository from GitHub/GitLab:
 ```bash
 git clone <your-repository-url>
 cd <your-repository-folder>
 ```
 
-### Option B: Using SCP (From your local machine)
-If your code is purely local, open a **new** terminal on your Windows machine and run:
+### Option B: Using S3 (If using SSM and no Git)
+Upload your project as a `.zip` file to an AWS S3 bucket, then download it from your SSM terminal:
+```bash
+aws s3 cp s3://your-bucket-name/project.zip .
+unzip project.zip
+cd project
+```
+
+### Option C: Using SCP (If using Traditional SSH)
+If your code is purely local and you connected via SSH, open a **new** terminal on your Windows machine and run:
 ```powershell
 scp -i \path\to\your-key.pem -r "c:\Users\Harsh\HiHarsh\Coding\Python\RAG Closed context QA" ec2-user@<your-ec2-public-ip>:/home/ec2-user/RAG_Chatbot
 ```
