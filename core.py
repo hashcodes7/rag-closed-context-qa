@@ -278,7 +278,8 @@ class RAGEngine:
             self.parent_chunks = {}
             if not os.path.exists(folder): os.makedirs(folder)
             
-            valid_extensions = (".txt", ".pdf", ".docx")
+            # Accept common document formats including HTML/HTM
+            valid_extensions = (".txt", ".pdf", ".docx", ".html", ".htm")
             parent_id_counter = 0
             
             for filename in os.listdir(folder):
@@ -309,6 +310,15 @@ class RAGEngine:
                         })
             
             chunk_texts = [item["text"] for item in self.chunks]
+
+            # If no chunks were produced (e.g., unsupported files only), bail out gracefully
+            if len(chunk_texts) == 0:
+                print("[!] No text chunks were extracted from knowledge sources. Skipping index creation.")
+                self.faiss_index = None
+                # Create an empty BM25 index to avoid None checks elsewhere
+                self.bm25_index = SimpleBM25([])
+                return
+
             embeddings_np = self.embedder.encode(chunk_texts, convert_to_numpy=True).astype("float32")
             faiss.normalize_L2(embeddings_np)
             dim = embeddings_np.shape[1]

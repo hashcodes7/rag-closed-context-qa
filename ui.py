@@ -173,16 +173,37 @@ with st.sidebar:
     # File List & Deletion
     st.write("Current Files:")
     if os.path.exists("knowledge_source"):
+        # Supported extensions should mirror core's accepted list
+        supported_exts = {".txt", ".pdf", ".docx", ".html", ".htm"}
+
+        # Determine which files are already indexed (if the engine has processed the KB)
+        try:
+            indexed_sources = set([c["source"] for c in engine.chunks]) if getattr(engine, "chunks", None) else set()
+        except Exception:
+            indexed_sources = set()
+
         for f in os.listdir("knowledge_source"):
             ext = os.path.splitext(f)[1].lower()
-            if ext in [".txt", ".pdf", ".docx", ".html"]:
-                icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘" if ext == ".docx" else "🌐"
-                col_file, col_del = st.columns([0.8, 0.2])
-                col_file.caption(f"{icon} {f}")
-                if col_del.button("🗑️", key=f"del_{f}"):
-                    os.remove(os.path.join("knowledge_source", f))
-                    st.session_state["reindex_required"] = True
-                    st.rerun()
+
+            # Status marker: ✓ indexed, ✗ unsupported, ○ supported-but-not-indexed
+            if ext not in supported_exts:
+                status = "✗"
+                status_title = "Unsupported file type"
+            elif f in indexed_sources:
+                status = "✓"
+                status_title = "Indexed"
+            else:
+                status = "○"
+                status_title = "Supported (not indexed)"
+
+            icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘" if ext == ".docx" else "🌐" if ext in {".html", ".htm"} else "📁"
+            col_file, col_del = st.columns([0.8, 0.2])
+            col_file.caption(f"{status} {icon} {f}")
+            col_file.write(f"_{status_title}_")
+            if col_del.button("🗑️", key=f"del_{f}"):
+                os.remove(os.path.join("knowledge_source", f))
+                st.session_state["reindex_required"] = True
+                st.rerun()
                     
     if st.session_state.get("reindex_required"):
         st.warning("⚠️ Files changed. Re-index recommended.")
