@@ -192,7 +192,15 @@ class RAGEngine:
                 raise ImportError("Please install llama-cpp-python to use GGUF models: pip install llama-cpp-python")
             
             print(f"[+] Loading GGUF Model: {self.model_name} (CPU Optimized)")
-            if "/" in self.model_name and not os.path.exists(self.model_name):
+            
+            import glob
+            local_filename = f"{self.model_name.replace('/', '_')}_*q4_k_m.gguf"
+            local_files = glob.glob(os.path.join("models", local_filename))
+            
+            if local_files:
+                print(f"[+] Found local model file: {local_files[0]}")
+                self.model = Llama(model_path=local_files[0], n_ctx=2048, n_threads=os.cpu_count() or 4, verbose=False)
+            elif "/" in self.model_name and not os.path.exists(self.model_name):
                  self.model = Llama.from_pretrained(
                     repo_id=self.model_name,
                     filename="*q4_k_m.gguf", 

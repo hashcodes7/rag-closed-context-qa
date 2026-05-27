@@ -8,33 +8,66 @@ import database as db
 db.init_db()
 
 # =====================================================
-# 🌊 RAGBOT V16 (Streamlit UI)
+def download_model_ui(repo_id, pattern="q4_k_m.gguf"):
+    import huggingface_hub
+    import requests
+    
+    try:
+        info = huggingface_hub.model_info(repo_id)
+    except Exception as e:
+        st.error(f"Failed to fetch model info from Hugging Face: {e}")
+        return None
+        
+    filename = None
+    for sibling in info.siblings:
+        if pattern.lower() in sibling.rfilename.lower():
+            filename = sibling.rfilename
+            break
+            
+    if not filename:
+        st.error(f"Could not find a matching GGUF file in {repo_id}")
+        return None
+        
+    url = huggingface_hub.hf_hub_url(repo_id, filename)
+    os.makedirs("models", exist_ok=True)
+    local_path = os.path.join("models", f"{repo_id.replace('/', '_')}_{filename}")
+    
+    st.write(f"📥 Downloading `{filename}` from `{repo_id}`...")
+    
+    try:
+        response = requests.get(url, stream=True)
+        total_size = int(response.headers.get('content-length', 0))
+        
+        progress_bar = st.progress(0.0)
+        status_text = st.empty()
+        
+        downloaded = 0
+        with open(local_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=1024*1024):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        pct = downloaded / total_size
+                        progress_bar.progress(min(1.0, pct))
+                        status_text.text(f"Downloaded {downloaded/(1024*1024):.1f} MB / {total_size/(1024*1024):.1f} MB ({pct:.1%})")
+                        
+        status_text.success(f"Download complete! Saved to `{local_path}`")
+        return local_path
+    except Exception as e:
+        st.error(f"Download failed: {e}")
+        return None
+
+# =====================================================
+# 🌊 AskBot (Streamlit UI)
 # =====================================================
 
-st.set_page_config(page_title="SourceIQ RAG Engine", page_icon="🧠", layout="wide")
-
-# --- CUSTOM CSS FOR PREMIUM LOOK ---
-st.markdown("""
-    <style>
-    .stApp {
-        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-        color: #ffffff;
-    }
-    .stChatMessage {
-        border-radius: 15px;
-        margin-bottom: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .stSidebar {
-        background-color: rgba(0, 0, 0, 0.3);
-    }
-    </style>
-""", unsafe_allow_html=True)
+st.set_page_config(page_title="AskBot", page_icon="🧠", layout="wide")
 
 # --- INITIALIZE SESSION STATE ---
 # --- INITIALIZE SESSION STATE ---
 if "current_model" not in st.session_state:
-    st.session_state["current_model"] = "microsoft/Phi-3.5-mini-instruct"
+    st.session_state["current_model"] = "bartowski/Phi-3.5-mini-instruct-GGUF"
 
 # --- CACHED ENGINE INITIALIZATION ---
 @st.cache_resource
@@ -51,17 +84,33 @@ with st.sidebar:
     st.divider()
     
     st.subheader("🤖 Model Selection")
-    model_options = [
-        "microsoft/Phi-3.5-mini-instruct",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro",
-        "meta-llama/Llama-3.2-1B-Instruct",
-        "microsoft/phi-2",
-        "Custom Model..."
-    ]
     
-    selected_base = st.selectbox("Choose a model", model_options, 
-                                 index=model_options.index(st.session_state["current_model"]) if st.session_state["current_model"] in model_options else 0)
+    model_mapping = {
+        "Microsoft Phi-3.5 Mini Instruct GGUF": "bartowski/Phi-3.5-mini-instruct-GGUF",
+        "Google Gemini 1.5 Flash": "gemini-1.5-flash",
+        "Google Gemini 1.5 Pro": "gemini-1.5-pro",
+        "Meta Llama 3.2 1B Instruct GGUF": "bartowski/Llama-3.2-1B-Instruct-GGUF",
+        "Microsoft Phi-2 GGUF": "TheBloke/phi-2-GGUF",
+        "Custom Model...": "Custom Model..."
+    }
+    
+    display_options = list(model_mapping.keys())
+    
+    # Find the display name for the current model in session state
+    current_display = "Microsoft Phi-3.5 Mini Instruct GGUF"
+    for disp, raw in model_mapping.items():
+        if raw == st.session_state.get("current_model"):
+            current_display = disp
+            break
+            
+    # Handle case where current model is a custom input not in mapping
+    if current_display == "Microsoft Phi-3.5 Mini Instruct GGUF" and st.session_state.get("current_model") and st.session_state["current_model"] not in model_mapping.values():
+        current_display = "Custom Model..."
+            
+    selected_display = st.selectbox("Choose a model", display_options, 
+                                 index=display_options.index(current_display))
+                                 
+    selected_base = model_mapping.get(selected_display, selected_display)
     
     # 🆕 GGUF vs API vs Standard Indicators
     if selected_base.startswith("gemini-"):
@@ -143,13 +192,45 @@ with st.sidebar:
         st.session_state["messages"] = []
         st.rerun()
 
-    st.info("SourceIQ V20 - Advanced Edition")
+    st.info("AskBot - Advanced Edition")
 
 # --- INITIALIZE MODELS & DATA ---
 if "reindex_required" not in st.session_state:
     st.session_state["reindex_required"] = False
 
 if "models_loaded" not in st.session_state:
+    repo_id = st.session_state["current_model"]
+    
+    is_cached = False
+    if repo_id.startswith("gemini-") or repo_id == "Custom Model...":
+        is_cached = True
+    else:
+        import glob
+        local_filename = f"{repo_id.replace('/', '_')}_*q4_k_m.gguf"
+        if glob.glob(os.path.join("models", local_filename)):
+            is_cached = True
+        else:
+            try:
+                from huggingface_hub import scan_cache_dir
+                is_cached = any(repo.repo_id == repo_id for repo in scan_cache_dir().repos)
+            except:
+                pass
+                
+    if not is_cached:
+        display_name = repo_id
+        for name, repo in model_mapping.items():
+            if repo == repo_id:
+                display_name = name
+                break
+                
+        st.warning(f"📥 Model **{display_name}** is not downloaded.")
+        if st.button("🚀 Download Model", use_container_width=True):
+            local_path = download_model_ui(repo_id)
+            if local_path:
+                st.session_state["models_loaded"] = True
+                st.rerun()
+        st.stop()
+        
     with st.status("🚀 Initializing Engine...", expanded=True) as status:
         st.write("🔄 Loading AI Models...")
         engine.load_models(quantization_mode=quant_mode)
@@ -173,7 +254,7 @@ if "messages" not in st.session_state:
     st.session_state["messages"] = db.load_messages("default_user")
 
 # --- HEADER ---
-st.title("🧠 SourceIQ: Advanced RAG Engine")
+st.title("🧠 AskBot: Advanced RAG Engine")
 st.caption("v18 — Multi-Format Support | Hybrid Search | Quantization")
 
 # --- CHAT DISPLAY ---
