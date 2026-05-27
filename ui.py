@@ -159,6 +159,42 @@ with st.sidebar:
     st.divider()
     st.subheader("📂 Knowledge Manager")
     
+    # --- KB STATUS ---
+    st.write("**KB Status:**")
+    
+    # Count files and check cache/index status
+    kb_folder = "knowledge_source"
+    supported_exts = {".txt", ".pdf", ".docx", ".html", ".htm"}
+    
+    file_count = 0
+    if os.path.exists(kb_folder):
+        file_count = len([f for f in os.listdir(kb_folder) if os.path.splitext(f)[1].lower() in supported_exts])
+    
+    cache_exists = os.path.exists("vector_cache.pt")
+    index_exists = os.path.exists("faiss_index.bin")
+    chunks_loaded = getattr(engine, "chunks", None) and len(engine.chunks) > 0
+    
+    # Display status
+    st.caption(f"📁 Files present: **{file_count}**")
+    
+    if cache_exists:
+        st.caption("✓ Vector cache built")
+    else:
+        st.caption("✗ Vector cache missing")
+    
+    if index_exists:
+        st.caption("✓ Index built")
+    else:
+        st.caption("✗ Index missing")
+    
+    if chunks_loaded:
+        total_chunks = len(engine.chunks)
+        st.caption(f"✓ KB ready ({total_chunks} chunks)")
+    else:
+        st.caption("⚠️ KB not ready")
+    
+    st.divider()
+    
     # File Uploader
     uploaded_files = st.file_uploader("Upload Knowledge Files", type=["txt", "pdf", "docx", "html"], accept_multiple_files=True)
     if uploaded_files:

@@ -362,12 +362,21 @@ class RAGEngine:
                 import traceback
                 print(f"[!] HyDE failed:\n{traceback.format_exc()}")
         
-        query_vec = self.embedder.encode([search_query], convert_to_numpy=True).astype("float32")
-        faiss.normalize_L2(query_vec)
-        self.faiss_index.hnsw.efSearch = 64
-        _, s_indices = self.faiss_index.search(query_vec, k=min(20, self.faiss_index.ntotal))
-        semantic_ids = [int(idx) for idx in s_indices[0] if idx != -1]
-        metrics["semantic_time"] = time.time() - start
+        # If FAISS index isn't available (e.g., no KB files indexed), skip semantic search
+        if self.faiss_index is not None and getattr(self.faiss_index, "ntotal", 0) > 0:
+            query_vec = self.embedder.encode([search_query], convert_to_numpy=True).astype("float32")
+            faiss.normalize_L2(query_vec)
+            # Some FAISS index types may not expose .hnsw; guard defensively
+            try:
+                self.faiss_index.hnsw.efSearch = 64
+            except Exception:
+                pass
+            _, s_indices = self.faiss_index.search(query_vec, k=min(20, self.faiss_index.ntotal))
+            semantic_ids = [int(idx) for idx in s_indices[0] if idx != -1]
+            metrics["semantic_time"] = time.time() - start
+        else:
+            semantic_ids = []
+            metrics["semantic_time"] = 0.0
         
         # 2. Keyword Search (BM25)
         start = time.time()
