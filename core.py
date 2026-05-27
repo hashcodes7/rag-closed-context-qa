@@ -433,10 +433,11 @@ class RAGEngine:
             "If the answer exists in the context, respond with the full relevant text without omitting sentences, preserving contact names, email addresses, and priority details.\n"
             "Respond in a professional, corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
             "You may relate the meanings of words in the question to the context to find the best matching information, but do not add any facts that are not explicitly present in the context.\n"
-            "CRITICAL: Use in-text citations like [1], [2] to indicate which part of the context your answer came from when you reference it.\n"
+            "CRITICAL: Use source file names in the end of answer to indicate which part of the context your answer came from when you reference it.\n"
             f"<context>\n{context}\n</context>\n"
             "If the answer is not contained in the provided context, reply exactly with \"I think this info isnt yet added to my knowledge base.\" Do not add explanations, speculation, or additional content.\n"
             "If the question can be answered by relating terms in the question to the context, provide the relevant context text rather than falling back to the default reply."
+            "make sure that the answers are complete and do not cut off mid-sentence. If the answer is long, provide it in full and do not truncate it. Always use all relevant information from the context to provide the most comprehensive answer possible."
         )
         
         if self.model_name.startswith("gemini-"):
