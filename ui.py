@@ -160,7 +160,7 @@ with st.sidebar:
     st.subheader("📂 Knowledge Manager")
     
     # File Uploader
-    uploaded_files = st.file_uploader("Upload Knowledge Files", type=["txt", "pdf", "docx"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload Knowledge Files", type=["txt", "pdf", "docx", "html"], accept_multiple_files=True)
     if uploaded_files:
         for uploaded_file in uploaded_files:
             save_path = os.path.join("knowledge_source", uploaded_file.name)
@@ -175,8 +175,8 @@ with st.sidebar:
     if os.path.exists("knowledge_source"):
         for f in os.listdir("knowledge_source"):
             ext = os.path.splitext(f)[1].lower()
-            if ext in [".txt", ".pdf", ".docx"]:
-                icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘"
+            if ext in [".txt", ".pdf", ".docx", ".html"]:
+                icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘" if ext == ".docx" else "🌐"
                 col_file, col_del = st.columns([0.8, 0.2])
                 col_file.caption(f"{icon} {f}")
                 if col_del.button("🗑️", key=f"del_{f}"):

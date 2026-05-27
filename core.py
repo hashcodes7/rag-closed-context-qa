@@ -148,6 +148,16 @@ def extract_text_from_file(filepath):
         elif ext == ".docx":
             doc = docx.Document(filepath)
             return "\n".join([para.text for para in doc.paragraphs])
+        elif ext == ".html":
+            try:
+                from bs4 import BeautifulSoup
+                with open(filepath, "r", encoding="utf-8") as f:
+                    soup = BeautifulSoup(f.read(), "html.parser")
+                    # Extract text, separate block elements with newlines
+                    return soup.get_text(separator="\n", strip=True)
+            except ImportError:
+                print("[!] BeautifulSoup4 is required for HTML parsing. Run `pip install beautifulsoup4`")
+                return ""
     except Exception as e:
         print(f"[!] Error reading {filepath}: {e}")
     return ""
