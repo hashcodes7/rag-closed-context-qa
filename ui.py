@@ -55,7 +55,10 @@ def download_model_ui(repo_id, pattern="q4_k_m.gguf"):
         status_text.success(f"Download complete! Saved to `{local_path}`")
         return local_path
     except Exception as e:
-        st.error(f"Download failed: {e}")
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"[!] Download failed:\n{error_trace}")
+        st.error(f"Download failed: {e}\n\n```python\n{error_trace}\n```")
         return None
 
 # =====================================================
@@ -205,10 +208,12 @@ if "models_loaded" not in st.session_state:
     if repo_id.startswith("gemini-") or repo_id == "Custom Model...":
         is_cached = True
     else:
-        import glob
-        local_filename = f"{repo_id.replace('/', '_')}_*q4_k_m.gguf"
-        if glob.glob(os.path.join("models", local_filename)):
-            is_cached = True
+        if os.path.exists("models"):
+            target_prefix = repo_id.replace('/', '_').lower()
+            for existing_file in os.listdir("models"):
+                if existing_file.lower().startswith(target_prefix) and "q4_k_m.gguf" in existing_file.lower():
+                    is_cached = True
+                    break
         else:
             try:
                 from huggingface_hub import scan_cache_dir
@@ -230,12 +235,16 @@ if "models_loaded" not in st.session_state:
                 st.rerun()
         st.stop()
         
+        print(f"[SYSTEM] Beginning engine initialization...", flush=True)
     with st.status("🚀 Initializing Engine...", expanded=True) as status:
         st.write("🔄 Loading AI Models...")
+        print(f"[SYSTEM] Loading model weights for {st.session_state['current_model']}...", flush=True)
         engine.load_models(quantization_mode=quant_mode)
         st.write(f"📂 Indexing Knowledge Base ({chunking_mode})...")
+        print(f"[SYSTEM] Indexing knowledge base with {chunking_mode} chunking...", flush=True)
         engine.process_knowledge_base(chunking_mode=chunking_mode)
         status.update(label="✅ Engine Ready!", state="complete", expanded=False)
+        print("[SYSTEM] Engine ready.", flush=True)
     st.session_state["models_loaded"] = True
 
 # --- RE-INDEX TRIGGER ---
@@ -284,7 +293,9 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
         
         with st.status("⚙️ Response Details", expanded= True) as status:
             # 1. Retrieval
+            print(f"\n[SYSTEM] Received User Query: {prompt}", flush=True)
             st.write(f"Searching index {'(Hybrid+' if use_hybrid else '('}{'HyDE+' if use_hyde else ''}{'Rerank)' if use_rerank else ')'}...")
+            print(f"[SYSTEM] Executing Retrieval Pipeline (Hybrid={use_hybrid}, HyDE={use_hyde}, Rerank={use_rerank})", flush=True)
             top_chunks, metrics = engine.retrieve(
                 prompt, 
                 k=3, 
@@ -314,6 +325,7 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
                 
                 # 2. Generation
                 st.write("Synthesizing answer...")
+                print(f"[SYSTEM] Generation starting...", flush=True)
                 full_response = ""
                 
                 streamer = engine.generate_stream(prompt, context, [
@@ -327,6 +339,7 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
                     response_placeholder.markdown(full_response + "▌")
                 
                 gen_time = time.time() - start_time
+                print(f"[SYSTEM] Generation finished in {gen_time:.2f}s", flush=True)
                 response_placeholder.markdown(full_response)
                 response = full_response
                 

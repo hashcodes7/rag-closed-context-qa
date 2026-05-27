@@ -193,10 +193,15 @@ class RAGEngine:
             
             print(f"[+] Loading GGUF Model: {self.model_name} (CPU Optimized)")
             
-            import glob
             import multiprocessing
-            local_filename = f"{self.model_name.replace('/', '_')}_*q4_k_m.gguf"
-            local_files = glob.glob(os.path.join("models", local_filename))
+            
+            local_files = []
+            if os.path.exists("models"):
+                target_prefix = self.model_name.replace('/', '_').lower()
+                for existing_file in os.listdir("models"):
+                    if existing_file.lower().startswith(target_prefix) and "q4_k_m.gguf" in existing_file.lower():
+                        local_files.append(os.path.join("models", existing_file))
+                        break
             
             # Use physical cores to prevent thread contention
             optimal_threads = max(1, multiprocessing.cpu_count() // 2)
@@ -237,7 +242,9 @@ class RAGEngine:
                     torch_dtype="auto"
                 )
             except Exception as e:
-                print(f"[!] Model load failed: {e}. Falling back to defaults.")
+                import traceback
+                print(f"[!] Model load failed:\n{traceback.format_exc()}")
+                print("Falling back to defaults.")
                 self.model = AutoModelForCausalLM.from_pretrained(self.model_name, low_cpu_mem_usage=True)
             
         self.embedder = SentenceTransformer(self.embed_model_name)
@@ -332,7 +339,8 @@ class RAGEngine:
                 search_query = f"{question} {hyde_answer}"
                 metrics["hyde_gen_time"] = time.time() - start
             except Exception as e:
-                print(f"[!] HyDE failed: {e}")
+                import traceback
+                print(f"[!] HyDE failed:\n{traceback.format_exc()}")
         
         query_vec = self.embedder.encode([search_query], convert_to_numpy=True).astype("float32")
         faiss.normalize_L2(query_vec)
@@ -413,6 +421,8 @@ class RAGEngine:
                     if chunk.text:
                         yield chunk.text
             except Exception as e:
+                import traceback
+                print(f"[!] API Error:\n{traceback.format_exc()}")
                 yield f"\n[API Error: {str(e)}]"
             return
 
