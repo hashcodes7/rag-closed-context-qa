@@ -8,6 +8,7 @@ accelerate
 streamlit
 pymupdf
 python-docx
+beautifulsoup4
 lxml
 llama-cpp-python
 huggingface-hub

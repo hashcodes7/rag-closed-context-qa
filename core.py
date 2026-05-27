@@ -283,10 +283,15 @@ class RAGEngine:
             parent_id_counter = 0
             
             for filename in os.listdir(folder):
-                if not filename.lower().endswith(valid_extensions): continue
+                if not filename.lower().endswith(valid_extensions):
+                    print(f"[*] Skipping {filename}: unsupported extension")
+                    continue
                 path = os.path.join(folder, filename)
                 text = extract_text_from_file(path)
-                if not text.strip(): continue
+                if not text.strip():
+                    print(f"[!] Skipping {filename}: no text extracted")
+                    continue
+                print(f"[+] Processing {filename}...")
                 
                 # 1. Create Semantic Parents
                 if chunking_mode == "semantic":
