@@ -1,0 +1,30 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environments
+venv/
+env/
+.env
+
+# Application Data & Caches
+models/
+knowledge_source/
+rag_history.db
+faiss_index.bin
+vector_cache.pt
+chunking_mode.txt
+
+# IDEs and OS files
+.vscode/
+.idea/
+.DS_Store
+
+# Temporary scratch files
+scratch_hf.py
+test_hf_cache.py
+rag_history.db
+__pycache__/*
+rag_history.db

@@ -194,19 +194,23 @@ class RAGEngine:
             print(f"[+] Loading GGUF Model: {self.model_name} (CPU Optimized)")
             
             import glob
+            import multiprocessing
             local_filename = f"{self.model_name.replace('/', '_')}_*q4_k_m.gguf"
             local_files = glob.glob(os.path.join("models", local_filename))
             
+            # Use physical cores to prevent thread contention
+            optimal_threads = max(1, multiprocessing.cpu_count() // 2)
+            
             if local_files:
                 print(f"[+] Found local model file: {local_files[0]}")
-                self.model = Llama(model_path=local_files[0], n_ctx=2048, n_threads=os.cpu_count() or 4, verbose=False)
+                self.model = Llama(model_path=local_files[0], n_ctx=2048, n_threads=optimal_threads, verbose=False)
             elif "/" in self.model_name and not os.path.exists(self.model_name):
                  self.model = Llama.from_pretrained(
                     repo_id=self.model_name,
                     filename="*q4_k_m.gguf", 
                     verbose=False,
                     n_ctx=2048,
-                    n_threads=os.cpu_count() or 4
+                    n_threads=optimal_threads
                 )
             else:
                 self.model = Llama(model_path=self.model_name, n_ctx=2048, verbose=False)
@@ -420,12 +424,11 @@ class RAGEngine:
         
         if self.is_gguf:
             # GGUF Streamer (Generator)
-            def _gguf_generator():
-                for chunk in self.model.create_chat_completion(messages=messages, stream=True, max_tokens=max_tokens):
-                    delta = chunk['choices'][0]['delta']
-                    if 'content' in delta:
-                        yield delta['content']
-            return _gguf_generator()
+            for chunk in self.model.create_chat_completion(messages=messages, stream=True, max_tokens=max_tokens):
+                delta = chunk['choices'][0]['delta']
+                if 'content' in delta:
+                    yield delta['content']
+            return
         else:
             # Transformers Streamer
             text_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -434,4 +437,6 @@ class RAGEngine:
             generation_kwargs = dict(**inputs, streamer=streamer, max_new_tokens=max_tokens, do_sample=False)
             thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
             thread.start()
-            return streamer
+            for text in streamer:
+                yield text
+            return

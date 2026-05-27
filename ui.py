@@ -67,7 +67,7 @@ st.set_page_config(page_title="AskBot", page_icon="🧠", layout="wide")
 # --- INITIALIZE SESSION STATE ---
 # --- INITIALIZE SESSION STATE ---
 if "current_model" not in st.session_state:
-    st.session_state["current_model"] = "bartowski/Phi-3.5-mini-instruct-GGUF"
+    st.session_state["current_model"] = "bartowski/Llama-3.2-1B-Instruct-GGUF"
 
 # --- CACHED ENGINE INITIALIZATION ---
 @st.cache_resource
@@ -86,10 +86,10 @@ with st.sidebar:
     st.subheader("🤖 Model Selection")
     
     model_mapping = {
-        "Microsoft Phi-3.5 Mini Instruct GGUF": "bartowski/Phi-3.5-mini-instruct-GGUF",
+        "Meta Llama 3.2 1B Instruct GGUF": "bartowski/Llama-3.2-1B-Instruct-GGUF",
         "Google Gemini 1.5 Flash": "gemini-1.5-flash",
         "Google Gemini 1.5 Pro": "gemini-1.5-pro",
-        "Meta Llama 3.2 1B Instruct GGUF": "bartowski/Llama-3.2-1B-Instruct-GGUF",
+        "Microsoft Phi-3.5 Mini Instruct GGUF": "bartowski/Phi-3.5-mini-instruct-GGUF",
         "Microsoft Phi-2 GGUF": "TheBloke/phi-2-GGUF",
         "Custom Model...": "Custom Model..."
     }
@@ -97,14 +97,14 @@ with st.sidebar:
     display_options = list(model_mapping.keys())
     
     # Find the display name for the current model in session state
-    current_display = "Microsoft Phi-3.5 Mini Instruct GGUF"
+    current_display = "Meta Llama 3.2 1B Instruct GGUF"
     for disp, raw in model_mapping.items():
         if raw == st.session_state.get("current_model"):
             current_display = disp
             break
             
     # Handle case where current model is a custom input not in mapping
-    if current_display == "Microsoft Phi-3.5 Mini Instruct GGUF" and st.session_state.get("current_model") and st.session_state["current_model"] not in model_mapping.values():
+    if current_display == "Meta Llama 3.2 1B Instruct GGUF" and st.session_state.get("current_model") and st.session_state["current_model"] not in model_mapping.values():
         current_display = "Custom Model..."
             
     selected_display = st.selectbox("Choose a model", display_options, 
@@ -227,7 +227,6 @@ if "models_loaded" not in st.session_state:
         if st.button("🚀 Download Model", use_container_width=True):
             local_path = download_model_ui(repo_id)
             if local_path:
-                st.session_state["models_loaded"] = True
                 st.rerun()
         st.stop()
         
