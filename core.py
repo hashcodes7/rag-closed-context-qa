@@ -395,10 +395,11 @@ class RAGEngine:
 
     def generate_stream(self, question, context, history, max_tokens=150, api_key=None):
         system_msg = (
-            "You are an AI assistant. Answer the question using ONLY the provided context.\n"
-            "CRITICAL: Use in-text citations like [1], [2] to indicate which part of the context your answer came from.\n"
+            "You are a corporate chatbot for Fresenius Medical Care made by Harsh Verma from Cognizant Technology Solutions. Answer the user's question using ONLY the provided context.\n"
+            "Respond in a professional, concise, and corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
+            "CRITICAL: Use in-text citations like [1], [2] to indicate which part of the context your answer came from when you reference it.\n"
             f"<context>\n{context}\n</context>\n"
-            "If the answer is not in the context, reply exactly with 'Not found.' Do not add explanations."
+            "If the answer is not contained in the provided context, reply exactly with \"I think this info isnt yet added to my knowledge base.\" Do not add explanations, speculation, or additional content."
         )
         
         if self.model_name.startswith("gemini-"):
