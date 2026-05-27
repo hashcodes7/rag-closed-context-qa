@@ -11,7 +11,6 @@ env/
 
 # Application Data & Caches
 models/
-knowledge_source/
 rag_history.db
 faiss_index.bin
 vector_cache.pt
@@ -28,3 +27,4 @@ test_hf_cache.py
 rag_history.db
 __pycache__/*
 rag_history.db
+download_pdfs.py

@@ -1,6 +1,0 @@
-TechNova General Policies:
-1. Remote Work Policy: Employees are allowed to work remotely up to 3 days a week. Core availability hours are 10 AM to 3 PM local time.
-2. Code of Conduct: TechNova is committed to a harassment-free workplace. Any violations should be reported to the ethics hotline at ethics@technova.com.
-3. Bring Your Own Device (BYOD): Employees using personal devices must install the company Mobile Device Management (MDM) profile to access corporate networks.
-4. Travel Policy: Domestic travel is reimbursed up to $200 per day for lodging and meals. International travel requires VP approval.
-5. Expense Reports: Must be submitted by the 5th of the following month through the Concur portal.

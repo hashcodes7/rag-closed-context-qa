@@ -1,8 +1,0 @@
-Technology Stack & Engineering Guidelines:
-- Backend: Python (FastAPI, Django), Go for high-concurrency microservices.
-- Frontend: React.js, TypeScript, Tailwind CSS.
-- Database: PostgreSQL for relational data, MongoDB for unstructured logs, Redis for caching.
-- Infrastructure: Primarily hosted on AWS (EKS, S3, RDS). Terraform is used for Infrastructure as Code (IaC).
-- CI/CD: GitHub Actions is the standard for automated testing and deployment.
-- Testing: We enforce a minimum 80% test coverage using PyTest for backend and Jest for frontend.
-- Version Control: Git flow is the standard branching strategy. All PRs require at least one approving review.
