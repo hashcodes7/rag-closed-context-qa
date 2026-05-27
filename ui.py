@@ -183,6 +183,16 @@ with st.sidebar:
                     os.remove(os.path.join("knowledge_source", f))
                     st.session_state["reindex_required"] = True
                     st.rerun()
+                    
+    if st.session_state.get("reindex_required"):
+        st.warning("⚠️ Files changed. Re-index recommended.")
+        
+    if st.button("🛠️ Force Re-index Knowledge Base", use_container_width=True):
+        with st.status("🏗️ Re-indexing...", expanded=True) as status:
+            engine.process_knowledge_base(force_reindex=True, chunking_mode=chunking_mode)
+            st.session_state["reindex_required"] = False
+            status.update(label="✅ Re-indexed Successfully!", state="complete", expanded=False)
+            st.rerun()
     
     st.divider()
     if st.button("🔄 Force Engine Restart"):
@@ -246,16 +256,6 @@ if "models_loaded" not in st.session_state:
         status.update(label="✅ Engine Ready!", state="complete", expanded=False)
         print("[SYSTEM] Engine ready.", flush=True)
     st.session_state["models_loaded"] = True
-
-# --- RE-INDEX TRIGGER ---
-if st.session_state["reindex_required"]:
-    st.warning("⚠️ Knowledge base has changed. Re-index required to apply changes.")
-    if st.button("🛠️ Re-index Knowledge Base Now"):
-        with st.status("🏗️ Re-indexing...", expanded=True) as status:
-            engine.process_knowledge_base(force_reindex=True, chunking_mode=chunking_mode)
-            st.session_state["reindex_required"] = False
-            status.update(label="✅ Re-indexed Successfully!", state="complete", expanded=False)
-            st.rerun()
 
 # --- SESSION STATE FOR CHAT ---
 if "messages" not in st.session_state:
