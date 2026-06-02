@@ -282,7 +282,7 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
-    st.info("AskBot - Advanced Edition")
+    st.info("AskBot - Developed by Harsh Verma")
 
 
 # --- INITIALIZE MODELS & DATA ---

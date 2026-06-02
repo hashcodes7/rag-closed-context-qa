@@ -455,16 +455,15 @@ class RAGEngine:
         metrics["rerank_time"] = time.time() - start
         return final_results, metrics
 
-    def generate_stream(self, question, context, history, max_tokens=150, api_key=None):
+    def generate_stream(self, question, context, history, max_tokens=512, api_key=None):
         system_msg = (
             "You are a corporate chatbot for Fresenius Medical Care made by Harsh Verma from Cognizant Technology Solutions. Answer the user's question using ONLY the provided context.\n"
-            "If the answer exists in the context, respond with the full relevant text without omitting sentences, preserving contact names, email addresses, and priority details.\n"
+            "If the context contains relevant information (even if it is an overview, summary, or partial description), use it to provide a helpful, comprehensive, and detailed answer. Do not be overly strict or reject the context if it does not contain a step-by-step guide; instead, describe whatever relevant details are present (such as key areas, contact names, tools, or overview steps).\n"
             "Respond in a professional, corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
             "You may relate the meanings of words in the question to the context to find the best matching information, but do not add any facts that are not explicitly present in the context.\n"
             f"<context>\n{context}\n</context>\n"
-            "If the answer is not contained in the provided context, reply exactly with \"I think this info isnt yet added to my knowledge base.\" Do not add explanations, speculation, or additional content.\n"
-            "If the question can be answered by relating terms in the question to the context, provide the relevant context text rather than falling back to the default reply."
-            "make sure that the answers are complete and do not cut off mid-sentence. If the answer is long, provide it in full and do not truncate it. Always use all relevant information from the context to provide the most comprehensive answer possible."
+            "Only if the provided context is completely unrelated or has zero connection to the user's question, reply exactly with: \"I think this info isn't yet added to my knowledge base.\" Do not add any explanations or extra words if you output this fallback phrase.\n"
+            "Ensure that your answers are complete and do not cut off mid-sentence. If the answer is long, provide it in full and do not truncate it. Always use all relevant information from the context to provide the most comprehensive answer possible."
         )
         
         if self.model_name.startswith("gemini-"):
