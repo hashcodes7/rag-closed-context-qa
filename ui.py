@@ -96,6 +96,7 @@ with st.sidebar:
         "Microsoft Phi-2 GGUF": "TheBloke/phi-2-GGUF",
         "Custom Model...": "Custom Model..."
     }
+    model_options = list(model_mapping.values())
     
     display_options = list(model_mapping.keys())
     
@@ -140,10 +141,18 @@ with st.sidebar:
     st.divider()
     # --- Username / Session ---
     # Preference: use query params to persist username in the browser URL so returning users keep their name
-    params = st.experimental_get_query_params()
+    # Use st.query_params if available, fallback to experimental
     if "username" not in st.session_state:
-        if "user" in params and params["user"]:
-            st.session_state["username"] = params["user"][0]
+        try:
+            if "user" in st.query_params:
+                st.session_state["username"] = st.query_params["user"]
+        except Exception:
+            try:
+                params = st.experimental_get_query_params()
+                if "user" in params and params["user"]:
+                    st.session_state["username"] = params["user"][0]
+            except Exception:
+                pass
     username = st.session_state.get("username")
 
     if not username:
@@ -153,8 +162,14 @@ with st.sidebar:
             if input_name and input_name.strip():
                 st.session_state["username"] = input_name.strip()
                 # Persist in URL so it's stored in the browser
-                st.experimental_set_query_params(user=st.session_state["username"])
-                st.experimental_rerun()
+                try:
+                    st.query_params["user"] = st.session_state["username"]
+                except Exception:
+                    try:
+                        st.experimental_set_query_params(user=st.session_state["username"])
+                    except Exception:
+                        pass
+                st.rerun()
             else:
                 st.warning("Please enter a non-empty name.")
     else:

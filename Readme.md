@@ -6,35 +6,36 @@ SourceIQ is a local RAG chatbot that retrieves and answers questions from multip
 
 ## 🚀 Features
 
-- Multi-document `.txt` ingestion
-- Overlapping text chunking for better context
-- Semantic Vector Embeddings (SentenceTransformers)
-- Two-Stage Retrieval (Bi-Encoder search + Cross-Encoder Reranking)
-- Source tracking (file + chunk ID)
-- Conversational Memory (Follow-up questions)
-- Real-time Streaming Output (Typewriter effect)
-- Persistent Vector Caching (Instant startup)
-- Context-grounded responses using 🤗 Transformers
-- Qwen2.5-0.5B-Instruct model for generation
-- CLI-based interactive chatbot
+- Multi-format ingestion support (`.txt`, `.pdf`, `.docx`, `.html`, `.htm`)
+- Overlapping and Semantic Text Chunking strategies
+- FAISS Vector Database Integration (HNSW index) for fast, highly scalable search
+- Two-Stage Retrieval (Bi-Encoder semantic search + BM25 keyword search hybrid fusion via RRF + Cross-Encoder Reranking)
+- Source tracking (file, namespace, chunk ID, and exact snippet citations)
+- Conversational Memory (Alternating history and follow-up support)
+- SQLite Database Integration for persistent chat history per user name
+- Real-time Streaming Output (Typewriter effect in both terminal and web interfaces)
+- Persistent Vector Caching (Instant startup and hot reloading)
+- Transformers & GGUF (llama.cpp) local inference models (Qwen, Llama 3.2, Phi-3.5, Phi-2)
+- Cloud Inference: Google Gemini API integration (Gemini 1.5 Pro / Flash)
+- Sleek and Advanced Streamlit Web UI (`ui.py`) with telemetry stats and process/latencies visualization
+- Interactive CLI-based Terminal chatbot (`app.py`)
 
 ---
 
 ## 🧠 How It Works
 
-Documents → Chunking → Embeddings → Bi-Encoder Search → Cross-Encoder Reranking → Chat Memory → LLM Answer
+Documents → Semantic/Recursive Chunking → Vector Embeddings & Keyword Tokenization → HNSW (FAISS) + BM25 Search → Reciprocal Rank Fusion (RRF) → Cross-Encoder Reranking & Namespace Boosting → Context-grounded Answer Generation (Local LLM / GGUF / Gemini API) with Citations & SQLite History.
 
 ---
 
 ## ⚙️ Tech Stack
 
-Python | PyTorch | Hugging Face Transformers | NLP | RAG
+Python | PyTorch | Streamlit | FAISS | Hugging Face Transformers | llama-cpp-python | SQLite3 | PyMuPDF | python-docx | BS4 | Google Gemini API
 
 ---
 
 ## 🔮 Future Work
 
-- Web UI (Streamlit / React)  
-- PDF/DOCX support  
-- Fast API deployment  
-- FAISS / Vector Database Integration (Scale-up)  
+- Fully containerized Docker deployment
+- Multi-user authentication system
+- Advanced agentic tools (e.g. web search fallbacks)

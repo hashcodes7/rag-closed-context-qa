@@ -327,11 +327,7 @@ class RAGEngine:
                                 "parent_id": p_id,
                                 "namespace": namespace
                             })
-                            "source": filename, 
-                            "chunk_id": i, 
-                            "text": c_text, 
-                            "parent_id": p_id
-                        })
+
             
             chunk_texts = [item["text"] for item in self.chunks]
 
