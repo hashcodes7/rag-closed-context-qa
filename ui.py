@@ -67,28 +67,7 @@ def download_model_ui(repo_id, pattern="q4_k_m.gguf"):
 
 st.set_page_config(page_title="AskBot", page_icon="🧠", layout="wide")
 
-# --- GLOBAL THEME INJECTOR ---
-if st.session_state.get("theme_mode") == "light":
-    st.markdown("""
-    <style>
-    .stApp {
-        background-color: #f8f9fa !important;
-        color: #212529 !important;
-    }
-    div[data-testid="stChatMessage"] {
-        background-color: #e9ecef !important;
-        color: #212529 !important;
-        border-radius: 8px;
-    }
-    div[data-testid="stSidebar"] {
-        background-color: #ffffff !important;
-        border-right: 1px solid #dee2e6;
-    }
-    .stMarkdown, p, span, label, h1, h2, h3, h4, h5, h6 {
-        color: #212529 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+
 
 
 # --- INITIALIZE SESSION STATE ---
@@ -155,7 +134,7 @@ if not st.session_state["logged_in"]:
             st.session_state["username"] = user["username"]
             st.session_state["user_email"] = user["email"]
             st.session_state["user_role"] = user["role"]
-            st.session_state["theme_mode"] = user.get("theme_preference", "dark")
+            st.session_state["theme_mode"] = "dark"
 
 
 # --- LOGIN / SIGNUP SCREENS ---
@@ -184,7 +163,7 @@ if not st.session_state["logged_in"]:
                             st.session_state["username"] = user["username"]
                             st.session_state["user_email"] = user["email"]
                             st.session_state["user_role"] = user["role"]
-                            st.session_state["theme_mode"] = user.get("theme_preference", "dark")
+                            st.session_state["theme_mode"] = "dark"
 
                             
                             # Save to query params for browser persistence
@@ -300,17 +279,6 @@ with st.sidebar:
     if st.button("🗑️ Clear Chat History", use_container_width=True):
         db.clear_history(username)
         st.session_state["messages"] = []
-        st.rerun()
-
-    st.divider()
-    st.subheader("🎨 Theme Customization")
-    theme_mode = st.radio("App Theme Mode", ["Dark Mode 🌙", "Light Mode ☀️"], 
-                          index=0 if st.session_state["theme_mode"] == "dark" else 1,
-                          key="sidebar_theme_radio")
-    new_theme = "dark" if "Dark" in theme_mode else "light"
-    if new_theme != st.session_state["theme_mode"]:
-        st.session_state["theme_mode"] = new_theme
-        db.update_user_theme(st.session_state["uid"], new_theme)
         st.rerun()
 
     st.divider()
