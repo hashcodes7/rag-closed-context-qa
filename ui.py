@@ -67,6 +67,30 @@ def download_model_ui(repo_id, pattern="q4_k_m.gguf"):
 
 st.set_page_config(page_title="AskBot", page_icon="🧠", layout="wide")
 
+# --- GLOBAL THEME INJECTOR ---
+if st.session_state.get("theme_mode") == "light":
+    st.markdown("""
+    <style>
+    .stApp {
+        background-color: #f8f9fa !important;
+        color: #212529 !important;
+    }
+    div[data-testid="stChatMessage"] {
+        background-color: #e9ecef !important;
+        color: #212529 !important;
+        border-radius: 8px;
+    }
+    div[data-testid="stSidebar"] {
+        background-color: #ffffff !important;
+        border-right: 1px solid #dee2e6;
+    }
+    .stMarkdown, p, span, label, h1, h2, h3, h4, h5, h6 {
+        color: #212529 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
 # --- INITIALIZE SESSION STATE ---
 if "current_model" not in st.session_state:
     st.session_state["current_model"] = "bartowski/Llama-3.2-1B-Instruct-GGUF"
@@ -86,6 +110,10 @@ if "auth_page" not in st.session_state:
 
 if "current_page" not in st.session_state:
     st.session_state["current_page"] = "chat"
+
+if "theme_mode" not in st.session_state:
+    st.session_state["theme_mode"] = "dark"
+
 
 if "use_hybrid" not in st.session_state:
     st.session_state["use_hybrid"] = True
@@ -265,8 +293,14 @@ with st.sidebar:
         st.session_state["current_page"] = "settings"
         st.rerun()
 
+    if st.button("🗑️ Clear Chat History", use_container_width=True):
+        db.clear_history(username)
+        st.session_state["messages"] = []
+        st.rerun()
+
     st.divider()
     st.info("AskBot - Advanced Edition")
+
 
 # --- INITIALIZE MODELS & DATA ---
 if "reindex_required" not in st.session_state:
@@ -600,6 +634,13 @@ if st.session_state.get("current_page") == "settings":
                 st.session_state.pop("models_loaded", None) # Force re-load
                 st.rerun()
                 
+        st.divider()
+        st.subheader("🎨 Theme Customization")
+        theme_mode = st.radio("App Theme Mode", ["Dark Mode 🌙", "Light Mode ☀️"], 
+                               index=0 if st.session_state["theme_mode"] == "dark" else 1)
+        st.session_state["theme_mode"] = "dark" if "Dark" in theme_mode else "light"
+
+                
     with col_r:
         st.subheader("🛠️ Algorithm & Engine Control")
         
@@ -618,17 +659,10 @@ if st.session_state.get("current_page") == "settings":
         
         st.divider()
         
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("🔄 Force Engine Restart", use_container_width=True, type="primary"):
-                st.cache_resource.clear()
-                st.session_state.clear()
-                st.rerun()
-        with col_btn2:
-            if st.button("🗑️ Clear Chat History", use_container_width=True):
-                db.clear_history(username)
-                st.session_state["messages"] = []
-                st.rerun()
+        if st.button("🔄 Force Engine Restart", use_container_width=True, type="primary"):
+            st.cache_resource.clear()
+            st.session_state.clear()
+            st.rerun()
                 
     st.stop()
 

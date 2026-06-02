@@ -4,3 +4,8 @@ port = 8501
 address = "0.0.0.0"
 enableCORS = false
 enableXsrfProtection = false
+
+[theme]
+base = "dark"
+primaryColor = "#ff4b4b"
+
