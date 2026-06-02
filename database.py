@@ -1,13 +1,47 @@
 import sqlite3
 import json
 import os
+import hashlib
+import secrets
 from datetime import datetime
 
 DB_PATH = "rag_history.db"
 
+# =====================================================
+# 🔐 Password Hashing & Verification (PBKDF2-HMAC-SHA256)
+# =====================================================
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    hash_val = hashlib.pbkdf2_hmac(
+        'sha256', 
+        password.encode('utf-8'), 
+        salt.encode('utf-8'), 
+        100000
+    )
+    return f"{salt}${hash_val.hex()}"
+
+def verify_password(stored_hash: str, provided_password: str) -> bool:
+    try:
+        salt, hash_hex = stored_hash.split('$')
+        hash_val = hashlib.pbkdf2_hmac(
+            'sha256', 
+            provided_password.encode('utf-8'), 
+            salt.encode('utf-8'), 
+            100000
+        )
+        return hash_val.hex() == hash_hex
+    except Exception:
+        return False
+
+# =====================================================
+# 📊 Database Initialization
+# =====================================================
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    # Chat Messages table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,8 +53,92 @@ def init_db():
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # Users table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()
+
+# =====================================================
+# 👥 User Management Methods
+# =====================================================
+
+def create_user(username, email, password):
+    email_lower = email.strip().lower()
+    username_strip = username.strip()
+    # Seed only harsh.verma@freseniusmedicalcare.com as admin
+    role = "admin" if email_lower == "harsh.verma@freseniusmedicalcare.com" else "user"
+    pwd_hash = hash_password(password)
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO users (username, email, password_hash, role)
+            VALUES (?, ?, ?, ?)
+        """, (username_strip, email_lower, pwd_hash, role))
+        conn.commit()
+        user_id = cursor.lastrowid
+        return True, user_id
+    except sqlite3.IntegrityError:
+        return False, "Username or Email already registered."
+    finally:
+        conn.close()
+
+def authenticate_user(email, password):
+    email_lower = email.strip().lower()
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, username, email, password_hash, role FROM users
+        WHERE email = ?
+    """, (email_lower,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        user_id, username, db_email, stored_hash, role = row
+        if verify_password(stored_hash, password):
+            return {
+                "id": user_id,
+                "username": username,
+                "email": db_email,
+                "role": role
+            }
+    return None
+
+def get_user_by_credentials(user_id, email):
+    email_lower = email.strip().lower()
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, username, email, role FROM users
+        WHERE id = ? AND email = ?
+    """, (user_id, email_lower))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        uid, username, db_email, role = row
+        return {
+            "id": uid,
+            "username": username,
+            "email": db_email,
+            "role": role
+        }
+    return None
+
+# =====================================================
+# 💬 Chat Message History Methods
+# =====================================================
 
 def save_message(session_id, role, content, sources=None, metrics=None):
     conn = sqlite3.connect(DB_PATH)

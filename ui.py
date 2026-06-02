@@ -68,9 +68,132 @@ def download_model_ui(repo_id, pattern="q4_k_m.gguf"):
 st.set_page_config(page_title="AskBot", page_icon="🧠", layout="wide")
 
 # --- INITIALIZE SESSION STATE ---
-# --- INITIALIZE SESSION STATE ---
 if "current_model" not in st.session_state:
     st.session_state["current_model"] = "bartowski/Llama-3.2-1B-Instruct-GGUF"
+
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+if "username" not in st.session_state:
+    st.session_state["username"] = None
+if "user_email" not in st.session_state:
+    st.session_state["user_email"] = None
+if "user_role" not in st.session_state:
+    st.session_state["user_role"] = None
+if "uid" not in st.session_state:
+    st.session_state["uid"] = None
+if "auth_page" not in st.session_state:
+    st.session_state["auth_page"] = "login"
+
+# --- AUTO LOGIN VIA BROWSER QUERY PARAMS ---
+if not st.session_state["logged_in"]:
+    q_uid = None
+    q_email = None
+    try:
+        if "uid" in st.query_params and "email" in st.query_params:
+            q_uid = st.query_params["uid"]
+            q_email = st.query_params["email"]
+    except Exception:
+        try:
+            params = st.experimental_get_query_params()
+            if "uid" in params and "email" in params:
+                q_uid = params["uid"][0]
+                q_email = params["email"][0]
+        except Exception:
+            pass
+            
+    if q_uid and q_email:
+        user = db.get_user_by_credentials(q_uid, q_email)
+        if user:
+            st.session_state["logged_in"] = True
+            st.session_state["uid"] = user["id"]
+            st.session_state["username"] = user["username"]
+            st.session_state["user_email"] = user["email"]
+            st.session_state["user_role"] = user["role"]
+
+# --- LOGIN / SIGNUP SCREENS ---
+if not st.session_state["logged_in"]:
+    col1, col2, col3 = st.columns([1, 1.8, 1])
+    with col2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        
+        if st.session_state["auth_page"] == "login":
+            st.markdown("<h2 style='text-align: center;'>🧠 AskBot Sign In</h2>", unsafe_allow_html=True)
+            st.caption("Access the secure local corporate RAG assistant.")
+            
+            with st.form("login_form", clear_on_submit=False):
+                email = st.text_input("Corporate Email ID", placeholder="name@freseniusmedicalcare.com")
+                password = st.text_input("Password", type="password", placeholder="••••••••")
+                submitted = st.form_submit_button("Sign In", use_container_width=True)
+                
+                if submitted:
+                    if not email.strip() or not password.strip():
+                        st.error("Please enter both email and password.")
+                    else:
+                        user = db.authenticate_user(email, password)
+                        if user:
+                            st.session_state["logged_in"] = True
+                            st.session_state["uid"] = user["id"]
+                            st.session_state["username"] = user["username"]
+                            st.session_state["user_email"] = user["email"]
+                            st.session_state["user_role"] = user["role"]
+                            
+                            # Save to query params for browser persistence
+                            try:
+                                st.query_params["uid"] = str(user["id"])
+                                st.query_params["email"] = user["email"]
+                            except Exception:
+                                try:
+                                    st.experimental_set_query_params(uid=str(user["id"]), email=user["email"])
+                                except Exception:
+                                    pass
+                            st.rerun()
+                        else:
+                            st.error("Invalid email ID or password.")
+            
+            if st.button("New to AskBot? Sign Up here", use_container_width=True):
+                st.session_state["auth_page"] = "signup"
+                st.rerun()
+                
+        elif st.session_state["auth_page"] == "signup":
+            st.markdown("<h2 style='text-align: center;'>📝 AskBot Sign Up</h2>", unsafe_allow_html=True)
+            st.caption("Register below to access your isolated QA history.")
+            
+            with st.form("signup_form", clear_on_submit=False):
+                username = st.text_input("Preferred Username", placeholder="e.g. harsh_verma")
+                email = st.text_input("Corporate Email ID", placeholder="harsh.verma@freseniusmedicalcare.com")
+                password = st.text_input("Password", type="password", placeholder="Password")
+                confirm_password = st.text_input("Retype Password", type="password", placeholder="Retype Password")
+                submitted = st.form_submit_button("Create Account", use_container_width=True)
+                
+                if submitted:
+                    if not username.strip() or not email.strip() or not password.strip():
+                        st.error("All fields are required.")
+                    elif password != confirm_password:
+                        st.error("Passwords do not match.")
+                    else:
+                        success, detail = db.create_user(username, email, password)
+                        if success:
+                            st.session_state["auth_page"] = "signup_success"
+                            st.rerun()
+                        else:
+                            st.error(detail)
+            
+            if st.button("Already have an account? Log In", use_container_width=True):
+                st.session_state["auth_page"] = "login"
+                st.rerun()
+                
+        elif st.session_state["auth_page"] == "signup_success":
+            st.success("🎉 Signup Successful!")
+            st.markdown("""
+            Your corporate RAG account has been registered successfully.
+            
+            You can now log in using your email ID and password.
+            """)
+            if st.button("Proceed to Log In", use_container_width=True):
+                st.session_state["auth_page"] = "login"
+                st.rerun()
+                
+    st.stop()  # Stop execution of the rest of the application until logged in!
 
 # --- CACHED ENGINE INITIALIZATION ---
 @st.cache_resource
@@ -139,41 +262,32 @@ with st.sidebar:
             final_model_name = custom_name
 
     st.divider()
-    # --- Username / Session ---
-    # Preference: use query params to persist username in the browser URL so returning users keep their name
-    # Use st.query_params if available, fallback to experimental
-    if "username" not in st.session_state:
+    st.divider()
+    # --- User Info & Logout ---
+    st.markdown(f"👤 **Signed in as:** `{st.session_state['username']}`")
+    st.caption(f"Role: `{st.session_state['user_role']}`")
+    st.caption(f"Email: `{st.session_state['user_email']}`")
+    
+    if st.button("🚪 Log Out", use_container_width=True):
+        # Clear query params for browser persistence
         try:
-            if "user" in st.query_params:
-                st.session_state["username"] = st.query_params["user"]
+            st.query_params.clear()
         except Exception:
             try:
-                params = st.experimental_get_query_params()
-                if "user" in params and params["user"]:
-                    st.session_state["username"] = params["user"][0]
+                st.experimental_set_query_params()
             except Exception:
                 pass
-    username = st.session_state.get("username")
+        
+        # Reset session states
+        st.session_state["logged_in"] = False
+        st.session_state["uid"] = None
+        st.session_state["username"] = None
+        st.session_state["user_email"] = None
+        st.session_state["user_role"] = None
+        st.session_state["auth_page"] = "login"
+        st.session_state.pop("messages", None)
+        st.rerun()
 
-    if not username:
-        st.subheader("👤 Enter your user name")
-        input_name = st.text_input("Please enter your name (this will be used to store your chat history):", key="__tmp_username_input")
-        if st.button("Save name", use_container_width=True):
-            if input_name and input_name.strip():
-                st.session_state["username"] = input_name.strip()
-                # Persist in URL so it's stored in the browser
-                try:
-                    st.query_params["user"] = st.session_state["username"]
-                except Exception:
-                    try:
-                        st.experimental_set_query_params(user=st.session_state["username"])
-                    except Exception:
-                        pass
-                st.rerun()
-            else:
-                st.warning("Please enter a non-empty name.")
-    else:
-        st.markdown(f"**Signed in as:** `{username}`")
 
     # Model Switch Logic
     if st.session_state["current_model"] != final_model_name:
@@ -362,11 +476,8 @@ if "models_loaded" not in st.session_state:
         print("[SYSTEM] Engine ready.", flush=True)
     st.session_state["models_loaded"] = True
 
-# Require username before continuing (first-time users must enter name in sidebar)
-username = st.session_state.get("username")
-if not username:
-    st.warning("Please enter your user name in the sidebar to continue.")
-    st.stop()
+username = st.session_state["username"]
+
 
 # --- SESSION STATE FOR CHAT ---
 if "messages" not in st.session_state:
@@ -379,7 +490,12 @@ st.caption("v18 — Multi-Format Support | Hybrid Search | Quantization")
 # --- CHAT DISPLAY ---
 for msg in st.session_state["messages"]:
     with st.chat_message(msg["role"]):
+        if msg["role"] == "user":
+            st.markdown(f"**Prompt ({username})**")
+        else:
+            st.markdown(f"**Response ({username})**")
         st.markdown(msg["content"])
+
         if "sources" in msg and msg["sources"]:
             with st.expander("📚 Verified Citations"):
                 for s in msg["sources"]:
@@ -396,11 +512,15 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
     st.session_state["messages"].append({"role": "user", "content": prompt})
     db.save_message(username, "user", prompt)
     with st.chat_message("user"):
+        st.markdown(f"**Prompt ({username})**")
         st.markdown(prompt)
+
 
     # Generate response
     with st.chat_message("assistant"):
+        st.markdown(f"**Response ({username})**")
         response_placeholder = st.empty()
+
         
         with st.status("⚙️ Response Details", expanded= True) as status:
             # 1. Retrieval
@@ -439,10 +559,23 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
                 print(f"[SYSTEM] Generation starting...", flush=True)
                 full_response = ""
                 
-                streamer = engine.generate_stream(prompt, context, [
-                    {"user": m["content"], "bot": st.session_state["messages"][i+1]["content"]} 
-                    for i, m in enumerate(st.session_state["messages"][:-1]) if m["role"] == "user"
-                ], api_key=st.session_state.get("google_api_key"))
+                # Construct chat history securely by pairing user prompts with their assistant responses
+                chat_history = []
+                all_messages = st.session_state["messages"][:-1]
+                for idx, m in enumerate(all_messages):
+                    if m["role"] == "user":
+                        bot_content = ""
+                        if idx + 1 < len(all_messages) and all_messages[idx + 1]["role"] == "assistant":
+                            bot_content = all_messages[idx + 1]["content"]
+                        chat_history.append({"user": m["content"], "bot": bot_content})
+
+                streamer = engine.generate_stream(
+                    prompt, 
+                    context, 
+                    chat_history, 
+                    api_key=st.session_state.get("google_api_key")
+                )
+
                 
                 start_time = time.time()
                 for new_text in streamer:
