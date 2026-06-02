@@ -87,6 +87,20 @@ if "auth_page" not in st.session_state:
 if "current_page" not in st.session_state:
     st.session_state["current_page"] = "chat"
 
+if "use_hybrid" not in st.session_state:
+    st.session_state["use_hybrid"] = True
+if "use_hyde" not in st.session_state:
+    st.session_state["use_hyde"] = False
+if "use_rerank" not in st.session_state:
+    st.session_state["use_rerank"] = True
+if "use_parent" not in st.session_state:
+    st.session_state["use_parent"] = True
+if "quant_mode" not in st.session_state:
+    st.session_state["quant_mode"] = "4bit"
+if "chunking_mode" not in st.session_state:
+    st.session_state["chunking_mode"] = "semantic"
+
+
 
 # --- AUTO LOGIN VIA BROWSER QUERY PARAMS ---
 if not st.session_state["logged_in"]:
@@ -211,73 +225,6 @@ engine = get_engine(st.session_state["current_model"])
 # --- SIDEBAR SETTINGS ---
 with st.sidebar:
     st.title("⚙️ Engine Settings")
-    
-    if st.button("📂 Manage Knowledge Base", use_container_width=True, type="primary"):
-        st.session_state["current_page"] = "manage_kb"
-        st.rerun()
-        
-    if st.session_state.get("user_role") == "admin":
-        if st.button("👥 Manage Users", use_container_width=True, type="primary"):
-            st.session_state["current_page"] = "manage_users"
-            st.rerun()
-        
-    st.divider()
-
-
-    
-    st.subheader("🤖 Model Selection")
-    
-    model_mapping = {
-        "Meta Llama 3.2 1B Instruct GGUF": "bartowski/Llama-3.2-1B-Instruct-GGUF",
-        "Google Gemini 1.5 Flash": "gemini-1.5-flash",
-        "Google Gemini 1.5 Pro": "gemini-1.5-pro",
-        "Microsoft Phi-3.5 Mini Instruct GGUF": "bartowski/Phi-3.5-mini-instruct-GGUF",
-        "Microsoft Phi-2 GGUF": "TheBloke/phi-2-GGUF",
-        "Custom Model...": "Custom Model..."
-    }
-    model_options = list(model_mapping.values())
-    
-    display_options = list(model_mapping.keys())
-    
-    # Find the display name for the current model in session state
-    current_display = "Meta Llama 3.2 1B Instruct GGUF"
-    for disp, raw in model_mapping.items():
-        if raw == st.session_state.get("current_model"):
-            current_display = disp
-            break
-            
-    # Handle case where current model is a custom input not in mapping
-    if current_display == "Meta Llama 3.2 1B Instruct GGUF" and st.session_state.get("current_model") and st.session_state["current_model"] not in model_mapping.values():
-        current_display = "Custom Model..."
-            
-    selected_display = st.selectbox("Choose a model", display_options, 
-                                 index=display_options.index(current_display))
-                                 
-    selected_base = model_mapping.get(selected_display, selected_display)
-    
-    # GGUF vs API vs Standard Indicators
-    if selected_base.startswith("gemini-"):
-        st.success("☁️ **Google Gemini API**")
-        st.caption("Fast and powerful cloud inference.")
-        api_key = st.text_input("Google API Key", type="password")
-        st.session_state["google_api_key"] = api_key
-    else:
-        st.session_state["google_api_key"] = None
-        is_gguf = "gguf" in selected_base.lower() or selected_base.endswith(".gguf")
-        if is_gguf:
-            st.success("⚡ **GGUF (Fast CPU Mode)**")
-            st.caption("Running highly optimized C++ inference.")
-        else:
-            st.info("🌐 **Standard (Normal Mode)**")
-            st.caption("Running standard Transformers inference.")
-    
-    final_model_name = selected_base
-    if selected_base == "Custom Model...":
-        custom_name = st.text_input("Enter HF Model ID", value=st.session_state["current_model"] if st.session_state["current_model"] not in model_options else "")
-        if custom_name:
-            final_model_name = custom_name
-
-    st.divider()
     st.divider()
     # --- User Info & Logout ---
     st.markdown(f"👤 **Signed in as:** `{st.session_state['username']}`")
@@ -305,42 +252,30 @@ with st.sidebar:
         st.rerun()
 
 
-    # Model Switch Logic
-    if st.session_state["current_model"] != final_model_name:
-        if st.button("🚀 Apply Model Switch", use_container_width=True):
-            st.session_state["current_model"] = final_model_name
-            st.cache_resource.clear()
-            st.session_state.pop("models_loaded", None) # Force re-load
+    if st.button("📂 Manage Knowledge Base", use_container_width=True, type="primary"):
+        st.session_state["current_page"] = "manage_kb"
+        st.rerun()
+        
+    if st.session_state.get("user_role") == "admin":
+        if st.button("👥 Manage Users", use_container_width=True, type="primary"):
+            st.session_state["current_page"] = "manage_users"
             st.rerun()
-
-    st.divider()
-    st.subheader("🛠️ Algorithm Control")
-    use_hybrid = st.toggle("Hybrid Search (BM25)", value=True, help="Combines keyword search with vector search.")
-    use_hyde = st.toggle("HyDE Expansion", value=False, help="Generates an ideal answer first to improve retrieval.")
-    use_rerank = st.toggle("Cross-Encoder Rerank", value=True, help="Uses a secondary model to refine result relevance.")
-    use_parent = st.toggle("Parent-Doc Context", value=True, help="Retrieves the full paragraph context for the LLM.")
-    
-    st.divider()
-    quant_mode = st.selectbox("Quantization Mode", ["4bit", "8bit", "full"], index=0)
-    chunking_mode = st.radio("Chunking Strategy", ["semantic", "recursive"], index=0)
-    
-    st.divider()
-    
-    if st.button("🔄 Force Engine Restart", use_container_width=True):
-        st.cache_resource.clear()
-        st.session_state.clear()
+            
+    if st.button("⚙️ Settings", use_container_width=True, type="primary"):
+        st.session_state["current_page"] = "settings"
         st.rerun()
 
-    if st.button("🗑️ Clear Chat History", use_container_width=True):
-        db.clear_history(username)
-        st.session_state["messages"] = []
-        st.rerun()
-
+    st.divider()
     st.info("AskBot - Advanced Edition")
 
 # --- INITIALIZE MODELS & DATA ---
 if "reindex_required" not in st.session_state:
     st.session_state["reindex_required"] = False
+
+# Extract initial variables from session state
+quant_mode = st.session_state["quant_mode"]
+chunking_mode = st.session_state["chunking_mode"]
+
 
 if "models_loaded" not in st.session_state:
     repo_id = st.session_state["current_model"]
@@ -594,10 +529,122 @@ if st.session_state.get("current_page") == "manage_users":
                             st.caption("🔒 *Self-deletion is disabled to prevent lockout.*")
     st.stop()
 
+# --- DEDICATED SETTINGS ROUTING ---
+if st.session_state.get("current_page") == "settings":
+    st.title("⚙️ RAG Engine Configurations")
+    st.caption("Configure local models, retrieval algorithms, quantization modes, and system restarts.")
+    
+    if st.button("⬅️ Back to Chat", use_container_width=True, type="secondary"):
+        st.session_state["current_page"] = "chat"
+        st.rerun()
+        
+    st.divider()
+    
+    col_l, col_r = st.columns(2)
+    
+    with col_l:
+        st.subheader("🤖 Model Selection")
+        
+        model_mapping = {
+            "Meta Llama 3.2 1B Instruct GGUF": "bartowski/Llama-3.2-1B-Instruct-GGUF",
+            "Google Gemini 1.5 Flash": "gemini-1.5-flash",
+            "Google Gemini 1.5 Pro": "gemini-1.5-pro",
+            "Microsoft Phi-3.5 Mini Instruct GGUF": "bartowski/Phi-3.5-mini-instruct-GGUF",
+            "Microsoft Phi-2 GGUF": "TheBloke/phi-2-GGUF",
+            "Custom Model...": "Custom Model..."
+        }
+        model_options = list(model_mapping.values())
+        display_options = list(model_mapping.keys())
+        
+        # Find display name for the current model in session state
+        current_display = "Meta Llama 3.2 1B Instruct GGUF"
+        for disp, raw in model_mapping.items():
+            if raw == st.session_state.get("current_model"):
+                current_display = disp
+                break
+                
+        if current_display == "Meta Llama 3.2 1B Instruct GGUF" and st.session_state.get("current_model") and st.session_state["current_model"] not in model_mapping.values():
+            current_display = "Custom Model..."
+            
+        selected_display = st.selectbox("Choose a model", display_options, 
+                                     index=display_options.index(current_display))
+        selected_base = model_mapping.get(selected_display, selected_display)
+        
+        # GGUF vs API vs Standard Indicators
+        if selected_base.startswith("gemini-"):
+            st.success("☁️ **Google Gemini API**")
+            st.caption("Fast and powerful cloud inference.")
+            api_key = st.text_input("Google API Key", type="password", value=st.session_state.get("google_api_key", ""))
+            st.session_state["google_api_key"] = api_key
+        else:
+            st.session_state["google_api_key"] = None
+            is_gguf = "gguf" in selected_base.lower() or selected_base.endswith(".gguf")
+            if is_gguf:
+                st.success("⚡ **GGUF (Fast CPU Mode)**")
+                st.caption("Running highly optimized C++ inference.")
+            else:
+                st.info("🌐 **Standard (Normal Mode)**")
+                st.caption("Running standard Transformers inference.")
+                
+        final_model_name = selected_base
+        if selected_base == "Custom Model...":
+            custom_name = st.text_input("Enter HF Model ID", value=st.session_state["current_model"] if st.session_state["current_model"] not in model_options else "")
+            if custom_name:
+                final_model_name = custom_name
+                
+        # Model Switch Logic
+        if st.session_state["current_model"] != final_model_name:
+            if st.button("🚀 Apply Model Switch", use_container_width=True):
+                st.session_state["current_model"] = final_model_name
+                st.cache_resource.clear()
+                st.session_state.pop("models_loaded", None) # Force re-load
+                st.rerun()
+                
+    with col_r:
+        st.subheader("🛠️ Algorithm & Engine Control")
+        
+        st.session_state["use_hybrid"] = st.toggle("Hybrid Search (BM25)", value=st.session_state["use_hybrid"], help="Combines keyword search with vector search.")
+        st.session_state["use_hyde"] = st.toggle("HyDE Expansion", value=st.session_state["use_hyde"], help="Generates an ideal answer first to improve retrieval.")
+        st.session_state["use_rerank"] = st.toggle("Cross-Encoder Rerank", value=st.session_state["use_rerank"], help="Uses a secondary model to refine result relevance.")
+        st.session_state["use_parent"] = st.toggle("Parent-Doc Context", value=st.session_state["use_parent"], help="Retrieves the full paragraph context for the LLM.")
+        
+        st.divider()
+        
+        quant_options = ["4bit", "8bit", "full"]
+        st.session_state["quant_mode"] = st.selectbox("Quantization Mode", quant_options, index=quant_options.index(st.session_state["quant_mode"]))
+        
+        chunk_options = ["semantic", "recursive"]
+        st.session_state["chunking_mode"] = st.radio("Chunking Strategy", chunk_options, index=chunk_options.index(st.session_state["chunking_mode"]))
+        
+        st.divider()
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("🔄 Force Engine Restart", use_container_width=True, type="primary"):
+                st.cache_resource.clear()
+                st.session_state.clear()
+                st.rerun()
+        with col_btn2:
+            if st.button("🗑️ Clear Chat History", use_container_width=True):
+                db.clear_history(username)
+                st.session_state["messages"] = []
+                st.rerun()
+                
+    st.stop()
+
 
 # --- SESSION STATE FOR CHAT ---
 if "messages" not in st.session_state:
     st.session_state["messages"] = db.load_messages(username)
+
+# Extract config variables from session state
+use_hybrid = st.session_state["use_hybrid"]
+use_hyde = st.session_state["use_hyde"]
+use_rerank = st.session_state["use_rerank"]
+use_parent = st.session_state["use_parent"]
+quant_mode = st.session_state["quant_mode"]
+chunking_mode = st.session_state["chunking_mode"]
+
 
 
 # --- HEADER ---
