@@ -84,6 +84,10 @@ if "uid" not in st.session_state:
 if "auth_page" not in st.session_state:
     st.session_state["auth_page"] = "login"
 
+if "current_page" not in st.session_state:
+    st.session_state["current_page"] = "chat"
+
+
 # --- AUTO LOGIN VIA BROWSER QUERY PARAMS ---
 if not st.session_state["logged_in"]:
     q_uid = None
@@ -207,7 +211,13 @@ engine = get_engine(st.session_state["current_model"])
 # --- SIDEBAR SETTINGS ---
 with st.sidebar:
     st.title("⚙️ Engine Settings")
+    
+    if st.button("📂 Manage Knowledge Base", use_container_width=True, type="primary"):
+        st.session_state["current_page"] = "manage_kb"
+        st.rerun()
+        
     st.divider()
+
     
     st.subheader("🤖 Model Selection")
     
@@ -309,117 +319,13 @@ with st.sidebar:
     chunking_mode = st.radio("Chunking Strategy", ["semantic", "recursive"], index=0)
     
     st.divider()
-    st.subheader("📂 Knowledge Manager")
     
-    # --- KB STATUS ---
-    st.write("**KB Status:**")
-    
-    # Count files and check cache/index status
-    kb_folder = "knowledge_source"
-    supported_exts = {".txt", ".pdf", ".docx", ".html", ".htm"}
-    
-    file_count = 0
-    if os.path.exists(kb_folder):
-        file_count = len([f for f in os.listdir(kb_folder) if os.path.splitext(f)[1].lower() in supported_exts])
-    
-    cache_exists = os.path.exists("vector_cache.pt")
-    index_exists = os.path.exists("faiss_index.bin")
-    chunks_loaded = getattr(engine, "chunks", None) and len(engine.chunks) > 0
-    
-    # Display status
-    st.caption(f"📁 Files present: **{file_count}**")
-    
-    if cache_exists:
-        st.caption("✓ Vector cache built")
-    else:
-        st.caption("✗ Vector cache missing")
-    
-    if index_exists:
-        st.caption("✓ Index built")
-    else:
-        st.caption("✗ Index missing")
-    
-    if chunks_loaded:
-        total_chunks = len(engine.chunks)
-        st.caption(f"✓ KB ready ({total_chunks} chunks)")
-    else:
-        st.caption("⚠️ KB not ready")
-    
-    st.divider()
-    
-    # File Uploader
-    uploaded_files = st.file_uploader("Upload Knowledge Files", type=["txt", "pdf", "docx", "html"], accept_multiple_files=True)
-    if uploaded_files:
-        for uploaded_file in uploaded_files:
-            save_path = os.path.join("knowledge_source", uploaded_file.name)
-            if not os.path.exists(save_path):
-                with open(save_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-                st.success(f"Uploaded: {uploaded_file.name}")
-                st.session_state["reindex_required"] = True
-
-    # File List & Deletion
-    st.write("Current Files:")
-    if os.path.exists("knowledge_source"):
-        # Supported extensions should mirror core's accepted list
-        supported_exts = {".txt", ".pdf", ".docx", ".html", ".htm"}
-
-        # Determine which files are already indexed (if the engine has processed the KB)
-        try:
-            indexed_sources = set([c["source"] for c in engine.chunks]) if getattr(engine, "chunks", None) else set()
-        except Exception:
-            indexed_sources = set()
-
-        # Walk recursively to show folder hierarchy
-        for root, dirs, files in os.walk("knowledge_source"):
-            for f in files:
-                abs_path = os.path.join(root, f)
-                relpath = os.path.relpath(abs_path, "knowledge_source").replace('\\', '/')
-                ext = os.path.splitext(f)[1].lower()
-
-                # Determine namespace (top-level folder)
-                parts = relpath.split('/')
-                namespace = parts[0] if len(parts) > 1 else (parts[0] if parts else 'root')
-
-                # Status marker: ✓ indexed, ✗ unsupported, ○ supported-but-not-indexed
-                if ext not in supported_exts:
-                    status = "✗"
-                    status_title = "Unsupported file type"
-                elif relpath in indexed_sources:
-                    status = "✓"
-                    status_title = "Indexed"
-                else:
-                    status = "○"
-                    status_title = "Supported (not indexed)"
-
-                icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘" if ext == ".docx" else "🌐" if ext in {".html", ".htm"} else "📁"
-                col_file, col_del = st.columns([0.8, 0.2])
-                col_file.caption(f"{status} {icon} {relpath}  —  {namespace}")
-                col_file.write(f"_{status_title}_")
-                # Use a deletion key unique to the relative path
-                del_key = f"del_{relpath.replace('/', '_')}"
-                if col_del.button("🗑️", key=del_key):
-                    os.remove(abs_path)
-                    st.session_state["reindex_required"] = True
-                    st.rerun()
-                    
-    if st.session_state.get("reindex_required"):
-        st.warning("⚠️ Files changed. Re-index recommended.")
-        
-    if st.button("🛠️ Force Re-index Knowledge Base", use_container_width=True):
-        with st.status("🏗️ Re-indexing...", expanded=True) as status:
-            engine.process_knowledge_base(force_reindex=True, chunking_mode=chunking_mode)
-            st.session_state["reindex_required"] = False
-            status.update(label="✅ Re-indexed Successfully!", state="complete", expanded=False)
-            st.rerun()
-    
-    st.divider()
-    if st.button("🔄 Force Engine Restart"):
+    if st.button("🔄 Force Engine Restart", use_container_width=True):
         st.cache_resource.clear()
         st.session_state.clear()
         st.rerun()
 
-    if st.button("🗑️ Clear Chat History"):
+    if st.button("🗑️ Clear Chat History", use_container_width=True):
         db.clear_history(username)
         st.session_state["messages"] = []
         st.rerun()
@@ -479,9 +385,120 @@ if "models_loaded" not in st.session_state:
 username = st.session_state["username"]
 
 
+# --- DEDICATED KNOWLEDGE BASE MANAGER ROUTING ---
+if st.session_state.get("current_page") == "manage_kb":
+    st.title("📂 Document & Knowledge Base Manager")
+    st.caption("View, search, upload, and delete documents supporting the AskBot RAG engine.")
+    
+    if st.button("⬅️ Back to Chat", use_container_width=True, type="secondary"):
+        st.session_state["current_page"] = "chat"
+        st.rerun()
+        
+    st.divider()
+    
+    # 📊 Telemetry Cards
+    kb_folder = "knowledge_source"
+    supported_exts = {".txt", ".pdf", ".docx", ".html", ".htm"}
+    
+    file_count = 0
+    if os.path.exists(kb_folder):
+        file_count = len([f for f in os.listdir(kb_folder) if os.path.splitext(f)[1].lower() in supported_exts])
+        
+    cache_exists = os.path.exists("vector_cache.pt")
+    index_exists = os.path.exists("faiss_index.bin")
+    chunks_loaded = getattr(engine, "chunks", None) and len(engine.chunks) > 0
+    total_chunks = len(engine.chunks) if chunks_loaded else 0
+    
+    col_t1, col_t2, col_t3 = st.columns(3)
+    col_t1.metric("📂 Total Documents", f"{file_count} files")
+    col_t2.metric("⚡ Vector Cache Status", "Active (HNSW)" if cache_exists and index_exists else "Missing/Inactive")
+    col_t3.metric("🧩 Indexed Chunks", f"{total_chunks} segments")
+    
+    st.divider()
+    
+    col_left, col_right = st.columns([1, 1.2])
+    
+    with col_left:
+        st.subheader("📥 Ingest New Documents")
+        uploaded_files = st.file_uploader("Upload Corporate Knowledge Files", type=["txt", "pdf", "docx", "html"], accept_multiple_files=True)
+        if uploaded_files:
+            for uploaded_file in uploaded_files:
+                save_path = os.path.join(kb_folder, uploaded_file.name)
+                os.makedirs(kb_folder, exist_ok=True)
+                if not os.path.exists(save_path):
+                    with open(save_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    st.success(f"Successfully uploaded: {uploaded_file.name}")
+                    st.session_state["reindex_required"] = True
+                    st.rerun()
+                    
+        if st.session_state.get("reindex_required"):
+            st.warning("⚠️ Files changed. Re-index recommended to rebuild HNSW Vector Index and BM25 index.")
+            
+        if st.button("🏗️ Force Re-Index Knowledge Base", use_container_width=True, type="primary"):
+            with st.status("🏗️ Processing and Indexing Knowledge Base...", expanded=True) as status:
+                engine.process_knowledge_base(force_reindex=True, chunking_mode=chunking_mode)
+                st.session_state["reindex_required"] = False
+                status.update(label="✅ Re-indexed Successfully!", state="complete", expanded=False)
+                st.rerun()
+                
+    with col_right:
+        st.subheader("🔍 Knowledge Base Directory")
+        search_query = st.text_input("Search directory files...", placeholder="Type to filter file names...")
+        
+        if os.path.exists(kb_folder):
+            try:
+                indexed_sources = set([c["source"] for c in engine.chunks]) if getattr(engine, "chunks", None) else set()
+            except Exception:
+                indexed_sources = set()
+                
+            files_to_show = []
+            for root, dirs, files in os.walk(kb_folder):
+                for f in files:
+                    abs_path = os.path.join(root, f)
+                    relpath = os.path.relpath(abs_path, kb_folder).replace('\\', '/')
+                    ext = os.path.splitext(f)[1].lower()
+                    
+                    if search_query.strip().lower() and search_query.strip().lower() not in relpath.lower():
+                        continue
+                        
+                    files_to_show.append((abs_path, relpath, ext))
+                    
+            if not files_to_show:
+                st.info("No matching knowledge source files found.")
+            else:
+                for abs_path, relpath, ext in files_to_show:
+                    parts = relpath.split('/')
+                    namespace = parts[0] if len(parts) > 1 else (parts[0] if parts else 'root')
+                    
+                    if ext not in supported_exts:
+                        status_char = "✗"
+                        status_title = "Unsupported file type"
+                    elif relpath in indexed_sources:
+                        status_char = "✓"
+                        status_title = "Indexed"
+                    else:
+                        status_char = "○"
+                        status_title = "Supported (not indexed)"
+                        
+                    icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘" if ext == ".docx" else "🌐" if ext in {".html", ".htm"} else "📁"
+                    
+                    col_file_info, col_file_del = st.columns([0.85, 0.15])
+                    with col_file_info:
+                        st.markdown(f"**{status_char} {icon} {relpath}**  *(Namespace: `{namespace}`)*")
+                        st.caption(f"Status: {status_title}")
+                    with col_file_del:
+                        del_key = f"del_mgr_{relpath.replace('/', '_')}"
+                        if st.button("🗑️", key=del_key, help=f"Delete {relpath}"):
+                            os.remove(abs_path)
+                            st.session_state["reindex_required"] = True
+                            st.rerun()
+    st.stop()
+
 # --- SESSION STATE FOR CHAT ---
 if "messages" not in st.session_state:
     st.session_state["messages"] = db.load_messages(username)
+
 
 # --- HEADER ---
 st.title("🧠 AskBot: Advanced RAG Engine")
