@@ -284,22 +284,33 @@ with st.sidebar:
         st.rerun()
 
 
-    if st.button("📂 Manage Knowledge Base", use_container_width=True, type="primary"):
-        st.session_state["current_page"] = "manage_kb"
-        st.rerun()
-        
     if st.session_state.get("user_role") == "admin":
+        if st.button("📂 Manage Knowledge Base", use_container_width=True, type="primary"):
+            st.session_state["current_page"] = "manage_kb"
+            st.rerun()
+            
         if st.button("👥 Manage Users", use_container_width=True, type="primary"):
             st.session_state["current_page"] = "manage_users"
             st.rerun()
             
-    if st.button("⚙️ Settings", use_container_width=True, type="primary"):
-        st.session_state["current_page"] = "settings"
-        st.rerun()
+        if st.button("⚙️ Settings", use_container_width=True, type="primary"):
+            st.session_state["current_page"] = "settings"
+            st.rerun()
 
     if st.button("🗑️ Clear Chat History", use_container_width=True):
         db.clear_history(username)
         st.session_state["messages"] = []
+        st.rerun()
+
+    st.divider()
+    st.subheader("🎨 Theme Customization")
+    theme_mode = st.radio("App Theme Mode", ["Dark Mode 🌙", "Light Mode ☀️"], 
+                          index=0 if st.session_state["theme_mode"] == "dark" else 1,
+                          key="sidebar_theme_radio")
+    new_theme = "dark" if "Dark" in theme_mode else "light"
+    if new_theme != st.session_state["theme_mode"]:
+        st.session_state["theme_mode"] = new_theme
+        db.update_user_theme(st.session_state["uid"], new_theme)
         st.rerun()
 
     st.divider()
@@ -366,6 +377,11 @@ username = st.session_state["username"]
 
 # --- DEDICATED KNOWLEDGE BASE MANAGER ROUTING ---
 if st.session_state.get("current_page") == "manage_kb":
+    if st.session_state.get("user_role") != "admin":
+        st.error("Access Denied: Only administrators can access this page.")
+        st.session_state["current_page"] = "chat"
+        st.rerun()
+        
     st.title("📂 Document & Knowledge Base Manager")
     st.caption("View, search, upload, and delete documents supporting the AskBot RAG engine.")
     
@@ -569,6 +585,11 @@ if st.session_state.get("current_page") == "manage_users":
 
 # --- DEDICATED SETTINGS ROUTING ---
 if st.session_state.get("current_page") == "settings":
+    if st.session_state.get("user_role") != "admin":
+        st.error("Access Denied: Only administrators can access this page.")
+        st.session_state["current_page"] = "chat"
+        st.rerun()
+        
     st.title("⚙️ RAG Engine Configurations")
     st.caption("Configure local models, retrieval algorithms, quantization modes, and system restarts.")
     
@@ -638,17 +659,7 @@ if st.session_state.get("current_page") == "settings":
                 st.session_state.pop("models_loaded", None) # Force re-load
                 st.rerun()
                 
-        st.divider()
-        st.subheader("🎨 Theme Customization")
-        theme_mode = st.radio("App Theme Mode", ["Dark Mode 🌙", "Light Mode ☀️"], 
-                               index=0 if st.session_state["theme_mode"] == "dark" else 1)
-        new_theme = "dark" if "Dark" in theme_mode else "light"
-        
-        # If theme preference changed, write it to database and update state
-        if new_theme != st.session_state["theme_mode"]:
-            st.session_state["theme_mode"] = new_theme
-            db.update_user_theme(st.session_state["uid"], new_theme)
-            st.rerun()
+
 
 
                 
