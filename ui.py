@@ -115,7 +115,7 @@ with st.sidebar:
                                  
     selected_base = model_mapping.get(selected_display, selected_display)
     
-    # 🆕 GGUF vs API vs Standard Indicators
+    # GGUF vs API vs Standard Indicators
     if selected_base.startswith("gemini-"):
         st.success("☁️ **Google Gemini API**")
         st.caption("Fast and powerful cloud inference.")
@@ -136,6 +136,29 @@ with st.sidebar:
         custom_name = st.text_input("Enter HF Model ID", value=st.session_state["current_model"] if st.session_state["current_model"] not in model_options else "")
         if custom_name:
             final_model_name = custom_name
+
+    st.divider()
+    # --- Username / Session ---
+    # Preference: use query params to persist username in the browser URL so returning users keep their name
+    params = st.experimental_get_query_params()
+    if "username" not in st.session_state:
+        if "user" in params and params["user"]:
+            st.session_state["username"] = params["user"][0]
+    username = st.session_state.get("username")
+
+    if not username:
+        st.subheader("👤 Enter your user name")
+        input_name = st.text_input("Please enter your name (this will be used to store your chat history):", key="__tmp_username_input")
+        if st.button("Save name", use_container_width=True):
+            if input_name and input_name.strip():
+                st.session_state["username"] = input_name.strip()
+                # Persist in URL so it's stored in the browser
+                st.experimental_set_query_params(user=st.session_state["username"])
+                st.experimental_rerun()
+            else:
+                st.warning("Please enter a non-empty name.")
+    else:
+        st.markdown(f"**Signed in as:** `{username}`")
 
     # Model Switch Logic
     if st.session_state["current_model"] != final_model_name:
@@ -218,28 +241,38 @@ with st.sidebar:
         except Exception:
             indexed_sources = set()
 
-        for f in os.listdir("knowledge_source"):
-            ext = os.path.splitext(f)[1].lower()
+        # Walk recursively to show folder hierarchy
+        for root, dirs, files in os.walk("knowledge_source"):
+            for f in files:
+                abs_path = os.path.join(root, f)
+                relpath = os.path.relpath(abs_path, "knowledge_source").replace('\\', '/')
+                ext = os.path.splitext(f)[1].lower()
 
-            # Status marker: ✓ indexed, ✗ unsupported, ○ supported-but-not-indexed
-            if ext not in supported_exts:
-                status = "✗"
-                status_title = "Unsupported file type"
-            elif f in indexed_sources:
-                status = "✓"
-                status_title = "Indexed"
-            else:
-                status = "○"
-                status_title = "Supported (not indexed)"
+                # Determine namespace (top-level folder)
+                parts = relpath.split('/')
+                namespace = parts[0] if len(parts) > 1 else (parts[0] if parts else 'root')
 
-            icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘" if ext == ".docx" else "🌐" if ext in {".html", ".htm"} else "📁"
-            col_file, col_del = st.columns([0.8, 0.2])
-            col_file.caption(f"{status} {icon} {f}")
-            col_file.write(f"_{status_title}_")
-            if col_del.button("🗑️", key=f"del_{f}"):
-                os.remove(os.path.join("knowledge_source", f))
-                st.session_state["reindex_required"] = True
-                st.rerun()
+                # Status marker: ✓ indexed, ✗ unsupported, ○ supported-but-not-indexed
+                if ext not in supported_exts:
+                    status = "✗"
+                    status_title = "Unsupported file type"
+                elif relpath in indexed_sources:
+                    status = "✓"
+                    status_title = "Indexed"
+                else:
+                    status = "○"
+                    status_title = "Supported (not indexed)"
+
+                icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘" if ext == ".docx" else "🌐" if ext in {".html", ".htm"} else "📁"
+                col_file, col_del = st.columns([0.8, 0.2])
+                col_file.caption(f"{status} {icon} {relpath}  —  {namespace}")
+                col_file.write(f"_{status_title}_")
+                # Use a deletion key unique to the relative path
+                del_key = f"del_{relpath.replace('/', '_')}"
+                if col_del.button("🗑️", key=del_key):
+                    os.remove(abs_path)
+                    st.session_state["reindex_required"] = True
+                    st.rerun()
                     
     if st.session_state.get("reindex_required"):
         st.warning("⚠️ Files changed. Re-index recommended.")
@@ -258,7 +291,7 @@ with st.sidebar:
         st.rerun()
 
     if st.button("🗑️ Clear Chat History"):
-        db.clear_history("default_user")
+        db.clear_history(username)
         st.session_state["messages"] = []
         st.rerun()
 
@@ -314,9 +347,15 @@ if "models_loaded" not in st.session_state:
         print("[SYSTEM] Engine ready.", flush=True)
     st.session_state["models_loaded"] = True
 
+# Require username before continuing (first-time users must enter name in sidebar)
+username = st.session_state.get("username")
+if not username:
+    st.warning("Please enter your user name in the sidebar to continue.")
+    st.stop()
+
 # --- SESSION STATE FOR CHAT ---
 if "messages" not in st.session_state:
-    st.session_state["messages"] = db.load_messages("default_user")
+    st.session_state["messages"] = db.load_messages(username)
 
 # --- HEADER ---
 st.title("🧠 AskBot: Advanced RAG Engine")
@@ -340,7 +379,7 @@ for msg in st.session_state["messages"]:
 if prompt := st.chat_input("Ask about your knowledge base..."):
     # Add user message
     st.session_state["messages"].append({"role": "user", "content": prompt})
-    db.save_message("default_user", "user", prompt)
+    db.save_message(username, "user", prompt)
     with st.chat_message("user"):
         st.markdown(prompt)
 
@@ -432,7 +471,7 @@ if prompt := st.chat_input("Ask about your knowledge base..."):
             "sources": sources_meta,
             "metrics": metrics
         })
-        db.save_message("default_user", "assistant", response, sources_meta, metrics)
+        db.save_message(username, "assistant", response, sources_meta, metrics)
         
         if sources_meta:
             with st.expander("📚 Verified Citations"):

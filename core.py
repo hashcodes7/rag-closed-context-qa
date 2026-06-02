@@ -265,9 +265,13 @@ class RAGEngine:
         if not force_reindex and os.path.exists(cache_file) and os.path.exists(index_file):
             print("[*] Loading cache...")
             data = torch.load(cache_file)
-            self.chunks = data["chunks"]
+            self.chunks = data.get("chunks", [])
             self.parent_chunks = data.get("parent_chunks", {})
             self.faiss_index = faiss.read_index(index_file)
+            # Backwards compatibility: ensure namespace exists on loaded chunks
+            for c in self.chunks:
+                if "namespace" not in c:
+                    c["namespace"] = "root"
         else:
             print(f"[*] Processing files using {chunking_mode} chunking...")
             if force_reindex:
@@ -281,33 +285,48 @@ class RAGEngine:
             # Accept common document formats including HTML/HTM
             valid_extensions = (".txt", ".pdf", ".docx", ".html", ".htm")
             parent_id_counter = 0
-            
-            for filename in os.listdir(folder):
-                if not filename.lower().endswith(valid_extensions):
-                    print(f"[*] Skipping {filename}: unsupported extension")
-                    continue
-                path = os.path.join(folder, filename)
-                text = extract_text_from_file(path)
-                if not text.strip():
-                    print(f"[!] Skipping {filename}: no text extracted")
-                    continue
-                print(f"[+] Processing {filename}...")
-                
-                # 1. Create Semantic Parents
-                if chunking_mode == "semantic":
-                    parents = semantic_chunk_text(text, self.embedder)
-                else:
-                    parents = recursive_chunk_text(text, chunk_size=1500)
-                
-                for p_text in parents:
-                    p_id = f"p_{parent_id_counter}"
-                    self.parent_chunks[p_id] = p_text
-                    parent_id_counter += 1
-                    
-                    # 2. Create Overlapping Children for dense retrieval
-                    children = recursive_chunk_text(p_text, chunk_size=400, overlap=50)
-                    for i, c_text in enumerate(children):
-                        self.chunks.append({
+
+            # Walk the knowledge folder recursively so nested namespaces/folders are supported
+            for root, dirs, files in os.walk(folder):
+                for filename in files:
+                    if not filename.lower().endswith(valid_extensions):
+                        print(f"[*] Skipping {filename}: unsupported extension")
+                        continue
+
+                    path = os.path.join(root, filename)
+                    # compute relative path and namespace (top-level folder under `folder`)
+                    relpath = os.path.relpath(path, folder).replace('\\', '/')
+                    parts = relpath.split('/')
+                    namespace = parts[0] if len(parts) > 1 else (parts[0] if parts else 'root')
+
+                    text = extract_text_from_file(path)
+                    if not text.strip():
+                        print(f"[!] Skipping {relpath}: no text extracted")
+                        continue
+
+                    print(f"[+] Processing {relpath} (namespace={namespace})...")
+
+                    # 1. Create Semantic Parents
+                    if chunking_mode == "semantic":
+                        parents = semantic_chunk_text(text, self.embedder)
+                    else:
+                        parents = recursive_chunk_text(text, chunk_size=1500)
+
+                    for p_text in parents:
+                        p_id = f"p_{parent_id_counter}"
+                        self.parent_chunks[p_id] = p_text
+                        parent_id_counter += 1
+
+                        # 2. Create Overlapping Children for dense retrieval
+                        children = recursive_chunk_text(p_text, chunk_size=400, overlap=50)
+                        for i, c_text in enumerate(children):
+                            self.chunks.append({
+                                "source": relpath,
+                                "chunk_id": i,
+                                "text": c_text,
+                                "parent_id": p_id,
+                                "namespace": namespace
+                            })
                             "source": filename, 
                             "chunk_id": i, 
                             "text": c_text, 
@@ -406,11 +425,24 @@ class RAGEngine:
             cross_scores = self.cross_encoder.predict(cross_inp)
             for i in range(len(candidates)):
                 candidates[i]["score"] = float(cross_scores[i])
+                # Namespace boost: if question mentions the namespace, nudge the score
+                try:
+                    ns = candidates[i].get("namespace", "").lower()
+                    if ns and ns in question.lower():
+                        candidates[i]["score"] += 0.25
+                except Exception:
+                    pass
             candidates.sort(key=lambda x: x["score"], reverse=True)
         else:
             # If no reranking, scores are just their rank position
             for i, c in enumerate(candidates):
                 c["score"] = 1.0 / (i + 1)
+                try:
+                    ns = c.get("namespace", "").lower()
+                    if ns and ns in question.lower():
+                        c["score"] += 0.25
+                except Exception:
+                    pass
         
         final_results = candidates[:k]
         
@@ -433,7 +465,6 @@ class RAGEngine:
             "If the answer exists in the context, respond with the full relevant text without omitting sentences, preserving contact names, email addresses, and priority details.\n"
             "Respond in a professional, corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
             "You may relate the meanings of words in the question to the context to find the best matching information, but do not add any facts that are not explicitly present in the context.\n"
-            "CRITICAL: Use source file names in the end of answer to indicate which part of the context your answer came from when you reference it.\n"
             f"<context>\n{context}\n</context>\n"
             "If the answer is not contained in the provided context, reply exactly with \"I think this info isnt yet added to my knowledge base.\" Do not add explanations, speculation, or additional content.\n"
             "If the question can be answered by relating terms in the question to the context, provide the relevant context text rather than falling back to the default reply."
