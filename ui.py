@@ -216,7 +216,13 @@ with st.sidebar:
         st.session_state["current_page"] = "manage_kb"
         st.rerun()
         
+    if st.session_state.get("user_role") == "admin":
+        if st.button("👥 Manage Users", use_container_width=True, type="primary"):
+            st.session_state["current_page"] = "manage_users"
+            st.rerun()
+        
     st.divider()
+
 
     
     st.subheader("🤖 Model Selection")
@@ -494,6 +500,100 @@ if st.session_state.get("current_page") == "manage_kb":
                             st.session_state["reindex_required"] = True
                             st.rerun()
     st.stop()
+
+# --- DEDICATED USER MANAGEMENT ROUTING (ADMIN ONLY) ---
+if st.session_state.get("current_page") == "manage_users":
+    if st.session_state.get("user_role") != "admin":
+        st.error("Access Denied: You do not have permission to view this page.")
+        st.session_state["current_page"] = "chat"
+        st.rerun()
+        
+    st.title("👥 User Administration Dashboard")
+    st.caption("Admin Mode — View user accounts, change roles, edit details, and delete profiles with history.")
+    
+    if st.button("⬅️ Back to Chat", use_container_width=True, type="secondary"):
+        st.session_state["current_page"] = "chat"
+        st.rerun()
+        
+    st.divider()
+    
+    # 🔍 Search & Directory
+    all_users = db.get_all_users()
+    
+    search_query = st.text_input("🔍 Search users by name or email...", placeholder="Type to filter...")
+    
+    filtered_users = []
+    for u in all_users:
+        if search_query.strip().lower():
+            if (search_query.strip().lower() not in u["username"].lower()) and (search_query.strip().lower() not in u["email"].lower()):
+                continue
+        filtered_users.append(u)
+        
+    if not filtered_users:
+        st.info("No matching corporate users found.")
+    else:
+        st.write(f"Showing {len(filtered_users)} registered users:")
+        st.divider()
+        
+        for u in filtered_users:
+            u_id = u["id"]
+            u_username = u["username"]
+            u_email = u["email"]
+            u_role = u["role"]
+            u_created = u["created_at"]
+            
+            # Use unique keys for each edit form
+            form_key = f"user_edit_form_{u_id}"
+            
+            # Display user details in an expander for clean visual separation
+            with st.expander(f"👤 {u_username} — {u_email} ({u_role})"):
+                with st.form(form_key, clear_on_submit=False):
+                    col_u1, col_u2 = st.columns(2)
+                    with col_u1:
+                        # Email acts as the immutable corporate identifier (immutable/read-only PK)
+                        st.text_input("Email ID (Corporate Login ID — Locked)", value=u_email, disabled=True)
+                        edit_username = st.text_input("Preferred Username", value=u_username)
+                    with col_u2:
+                        role_options = ["user", "admin"]
+                        edit_role = st.selectbox("Assign Privilege Role", role_options, index=role_options.index(u_role))
+                        st.text_input("Registered Since", value=u_created, disabled=True)
+                    
+                    col_btn1, col_btn2 = st.columns(2)
+                    with col_btn1:
+                        save_submitted = st.form_submit_button("💾 Save User Changes", use_container_width=True)
+                        if save_submitted:
+                            if not edit_username.strip():
+                                st.error("Username cannot be empty.")
+                            else:
+                                success, msg = db.update_user(u_id, edit_username, edit_role)
+                                if success:
+                                    st.success(msg)
+                                    # If the edited user is the active logged-in user, refresh their session
+                                    if u_id == st.session_state.get("uid"):
+                                        st.session_state["username"] = edit_username.strip()
+                                        st.session_state["user_role"] = edit_role
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+                                    
+                    with col_btn2:
+                        # Safety lock to prevent self-deletion or lockout
+                        is_self = (u_id == st.session_state.get("uid"))
+                        delete_disabled = is_self
+                        
+                        delete_btn = st.form_submit_button("🗑️ Delete Account & History", use_container_width=True, type="primary", disabled=delete_disabled)
+                        if delete_btn:
+                            success = db.delete_user_and_history(u_id, u_username)
+                            if success:
+                                st.success(f"User {u_username} and their chat context were successfully purged.")
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete user.")
+                                
+                        if is_self:
+                            st.caption("🔒 *Self-deletion is disabled to prevent lockout.*")
+    st.stop()
+
 
 # --- SESSION STATE FOR CHAT ---
 if "messages" not in st.session_state:

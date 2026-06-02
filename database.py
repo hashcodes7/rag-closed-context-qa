@@ -183,3 +183,56 @@ def clear_history(session_id):
     cursor.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
     conn.commit()
     conn.close()
+
+# =====================================================
+# 👥 User Administration Methods (Admin Only)
+# =====================================================
+
+def get_all_users():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    users = []
+    for r in rows:
+        users.append({
+            "id": r[0],
+            "username": r[1],
+            "email": r[2],
+            "role": r[3],
+            "created_at": r[4]
+        })
+    return users
+
+def update_user(user_id, new_username, new_role):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE users 
+            SET username = ?, role = ?
+            WHERE id = ?
+        """, (new_username.strip(), new_role, user_id))
+        conn.commit()
+        return True, "User updated successfully."
+    except sqlite3.IntegrityError:
+        return False, "Username already in use."
+    finally:
+        conn.close()
+
+def delete_user_and_history(user_id, username):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        # Delete history from messages table
+        cursor.execute("DELETE FROM messages WHERE session_id = ?", (username,))
+        # Delete user record from users table
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        return False
+    finally:
+        conn.close()
