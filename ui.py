@@ -155,6 +155,8 @@ if not st.session_state["logged_in"]:
             st.session_state["username"] = user["username"]
             st.session_state["user_email"] = user["email"]
             st.session_state["user_role"] = user["role"]
+            st.session_state["theme_mode"] = user.get("theme_preference", "dark")
+
 
 # --- LOGIN / SIGNUP SCREENS ---
 if not st.session_state["logged_in"]:
@@ -182,6 +184,8 @@ if not st.session_state["logged_in"]:
                             st.session_state["username"] = user["username"]
                             st.session_state["user_email"] = user["email"]
                             st.session_state["user_role"] = user["role"]
+                            st.session_state["theme_mode"] = user.get("theme_preference", "dark")
+
                             
                             # Save to query params for browser persistence
                             try:
@@ -638,7 +642,14 @@ if st.session_state.get("current_page") == "settings":
         st.subheader("🎨 Theme Customization")
         theme_mode = st.radio("App Theme Mode", ["Dark Mode 🌙", "Light Mode ☀️"], 
                                index=0 if st.session_state["theme_mode"] == "dark" else 1)
-        st.session_state["theme_mode"] = "dark" if "Dark" in theme_mode else "light"
+        new_theme = "dark" if "Dark" in theme_mode else "light"
+        
+        # If theme preference changed, write it to database and update state
+        if new_theme != st.session_state["theme_mode"]:
+            st.session_state["theme_mode"] = new_theme
+            db.update_user_theme(st.session_state["uid"], new_theme)
+            st.rerun()
+
 
                 
     with col_r:

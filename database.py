@@ -61,11 +61,21 @@ def init_db():
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'user',
+            theme_preference TEXT NOT NULL DEFAULT 'dark',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
+    
+    # Gracefully add theme_preference column to existing databases if it's missing
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN theme_preference TEXT NOT NULL DEFAULT 'dark'")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+        
     conn.close()
+
 
 # =====================================================
 # 👥 User Management Methods
@@ -82,8 +92,8 @@ def create_user(username, email, password):
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            INSERT INTO users (username, email, password_hash, role)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO users (username, email, password_hash, role, theme_preference)
+            VALUES (?, ?, ?, ?, 'dark')
         """, (username_strip, email_lower, pwd_hash, role))
         conn.commit()
         user_id = cursor.lastrowid
@@ -98,20 +108,21 @@ def authenticate_user(email, password):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT id, username, email, password_hash, role FROM users
+        SELECT id, username, email, password_hash, role, theme_preference FROM users
         WHERE email = ?
     """, (email_lower,))
     row = cursor.fetchone()
     conn.close()
     
     if row:
-        user_id, username, db_email, stored_hash, role = row
+        user_id, username, db_email, stored_hash, role, theme_pref = row
         if verify_password(stored_hash, password):
             return {
                 "id": user_id,
                 "username": username,
                 "email": db_email,
-                "role": role
+                "role": role,
+                "theme_preference": theme_pref
             }
     return None
 
@@ -120,19 +131,20 @@ def get_user_by_credentials(user_id, email):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT id, username, email, role FROM users
+        SELECT id, username, email, role, theme_preference FROM users
         WHERE id = ? AND email = ?
     """, (user_id, email_lower))
     row = cursor.fetchone()
     conn.close()
     
     if row:
-        uid, username, db_email, role = row
+        uid, username, db_email, role, theme_pref = row
         return {
             "id": uid,
             "username": username,
             "email": db_email,
-            "role": role
+            "role": role,
+            "theme_preference": theme_pref
         }
     return None
 
@@ -236,3 +248,10 @@ def delete_user_and_history(user_id, username):
         return False
     finally:
         conn.close()
+
+def update_user_theme(user_id, theme_mode):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET theme_preference = ? WHERE id = ?", (theme_mode, user_id))
+    conn.commit()
+    conn.close()
