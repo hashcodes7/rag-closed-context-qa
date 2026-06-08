@@ -84,8 +84,8 @@ def init_db():
 def create_user(username, email, password):
     email_lower = email.strip().lower()
     username_strip = username.strip()
-    # Seed only harsh.verma@freseniusmedicalcare.com as admin
-    role = "admin" if email_lower == "harsh.verma@freseniusmedicalcare.com" else "user"
+    # Seed only corporate admin emails as admin
+    role = "admin" if email_lower in ["admin@freseniusmedicalcare.com", "cognizant.admin@freseniusmedicalcare.com"] else "user"
     pwd_hash = hash_password(password)
     
     conn = sqlite3.connect(DB_PATH)

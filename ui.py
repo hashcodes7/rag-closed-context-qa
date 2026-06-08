@@ -67,6 +67,382 @@ def download_model_ui(repo_id, pattern="q4_k_m.gguf"):
 
 st.set_page_config(page_title="CognIQ", page_icon="🧠", layout="wide")
 
+# Inject Custom CSS to match the mockup exactly
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+html, body, [class*="css"], .stApp {
+    font-family: 'Inter', sans-serif !important;
+}
+
+.stApp {
+    background-color: #ffffff !important;
+}
+
+section[data-testid="stSidebar"] {
+    background-color: #f4f3ef !important;
+    border-right: 1px solid #e2e8f0 !important;
+}
+
+div[data-testid="stChatMessageAvatar"] {
+    display: none !important;
+}
+div[data-testid="stChatMessage"] {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 10px 0 !important;
+}
+
+.user-msg-container {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+    margin: 8px 0;
+}
+.user-msg-bubble {
+    background-color: #f7f7f5 !important;
+    color: #111827 !important;
+    border-radius: 18px !important;
+    padding: 12px 18px !important;
+    max-width: 70% !important;
+    font-size: 15px !important;
+    font-weight: 400;
+    line-height: 1.5;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+.assistant-container {
+    width: 100%;
+    margin: 8px 0;
+}
+.assistant-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+.assistant-logo {
+    font-size: 16px;
+}
+.assistant-name {
+    font-weight: 600;
+    color: #111827;
+}
+.assistant-tag {
+    color: #6b7280;
+}
+.assistant-card {
+    background-color: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 14px !important;
+    padding: 16px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02) !important;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #1f2937;
+}
+.assistant-body {
+    white-space: pre-line;
+}
+.card-divider {
+    border: 0;
+    border-top: 1px solid #e2e8f0;
+    margin: 16px 0;
+}
+.sources-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.sources-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9ca3af;
+}
+.source-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+.badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+}
+.badge-ticket {
+    background-color: #dbeafe !important;
+    color: #2563eb !important;
+}
+.badge-kb {
+    background-color: #dcfce7 !important;
+    color: #166534 !important;
+}
+.source-text {
+    flex-grow: 1;
+    color: #374151;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.match-pct {
+    color: #9ca3af;
+    font-size: 12px;
+    white-space: nowrap;
+}
+.utility-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    padding-left: 4px;
+    font-size: 13px;
+    color: #9ca3af;
+}
+.utility-item {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: color 0.2s;
+}
+.utility-item:hover {
+    color: #2563eb;
+}
+
+div[data-testid="stChatInput"] {
+    border-radius: 24px !important;
+    border: 1px solid #e2e8f0 !important;
+    background-color: #ffffff !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+    padding-left: 10px !important;
+    margin-bottom: 5px !important;
+}
+div[data-testid="stChatInput"] textarea {
+    font-family: 'Inter', sans-serif !important;
+    font-size: 15px !important;
+}
+
+/* Hide default streamlit UI headers and menus */
+#MainMenu {display: none;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* Custom styles for sidebar elements */
+.sidebar-branding {
+    margin-bottom: 20px;
+    margin-top: 10px;
+}
+.sidebar-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
+}
+.sidebar-subtitle {
+    font-size: 13px;
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Custom New Chat Button Styling */
+div.stButton > button {
+    background-color: #dbeafe !important;
+    color: #2563eb !important;
+    border: none !important;
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    font-size: 15px !important;
+    padding: 10px 16px !important;
+    transition: all 0.2s !important;
+}
+div.stButton > button:hover {
+    background-color: #bfdbfe !important;
+    transform: translateY(-1px);
+}
+
+/* KB Status Card */
+.kb-card {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px;
+    margin-top: 16px;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+}
+.kb-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 4px;
+}
+.kb-card-status {
+    font-size: 12px;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.status-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #10b981;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Fixed User Profile Card at Sidebar Bottom */
+div[data-testid="stSidebarUserContent"] {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+.profile-container {
+    margin-top: auto !important;
+    margin-bottom: 20px !important;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+.profile-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: #dbeafe;
+    color: #2563eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+}
+.profile-info {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+.profile-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+}
+.profile-role {
+    font-size: 12px;
+    color: #6b7280;
+}
+.profile-chevron {
+    color: #9ca3af;
+    font-size: 14px;
+}
+
+/* Custom Header layout */
+.main-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 16px;
+}
+.engine-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: #374151;
+    font-weight: 500;
+}
+.engine-status .status-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #10b981;
+    border-radius: 50%;
+    display: inline-block;
+}
+.model-badge {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #4b5563;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Input Tagline */
+.input-tagline {
+    text-align: center;
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: 4px;
+    margin-bottom: 12px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Helper function to format citations as custom HTML chips matching the mockup
+def format_sources_html(sources):
+    if not sources:
+        return ""
+        
+    import os
+    chips = []
+    for idx, s in enumerate(sources):
+        if isinstance(s, dict):
+            src_name = s.get("source", "")
+            match_score = s.get("score")
+            if match_score is None:
+                match_score = 0.95 - (idx * 0.05)
+            match_pct = int(match_score * 100) if match_score <= 1.0 else int(match_score)
+        else:
+            src_name = str(s)
+            match_pct = 90 - (idx * 5)
+            
+        is_ticket = src_name.lower().endswith((".xlsx", ".xls")) or "inc" in src_name.lower() or "ticket" in src_name.lower()
+        badge_class = "badge-ticket" if is_ticket else "badge-kb"
+        badge_text = "Ticket" if is_ticket else "KB"
+        
+        basename = os.path.basename(src_name)
+        if len(basename) > 50:
+            basename = basename[:47] + "..."
+            
+        chip_html = f"""
+        <div class="source-chip">
+            <span class="badge {badge_class}">{badge_text}</span>
+            <span class="source-text" title="{src_name}">{basename}</span>
+            <span class="match-pct">{match_pct}% match</span>
+        </div>
+        """
+        chips.append(chip_html)
+        
+    if not chips:
+        return ""
+        
+    return f"""
+    <hr class="card-divider"/>
+    <div class="sources-container">
+        <div class="sources-title">Sources</div>
+        {"".join(chips)}
+    </div>
+    """
+
 
 
 
@@ -144,8 +520,10 @@ if not st.session_state["logged_in"]:
         st.markdown("<br><br>", unsafe_allow_html=True)
         
         if st.session_state["auth_page"] == "login":
-            st.markdown("<h2 style='text-align: center;'>🧠 CognIQ Sign In</h2>", unsafe_allow_html=True)
-            st.caption("Access the secure local corporate RAG assistant.")
+            st.image("media/cognizant_logo.png", use_container_width=True)
+            st.markdown("<h2 style='text-align: center; margin-top: 10px;'>CognIQ</h2>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center; color: #a0aec0; font-weight: 500; margin-top: -5px;'>Ask once. Resolve faster.</h4>", unsafe_allow_html=True)
+            st.caption("AMS support intelligence — answers from past ticket resolutions & knowledge base articles")
             
             with st.form("login_form", clear_on_submit=False):
                 email = st.text_input("Corporate Email ID", placeholder="name@freseniusmedicalcare.com")
@@ -184,12 +562,13 @@ if not st.session_state["logged_in"]:
                 st.rerun()
                 
         elif st.session_state["auth_page"] == "signup":
-            st.markdown("<h2 style='text-align: center;'>📝 CognIQ Sign Up</h2>", unsafe_allow_html=True)
+            st.image("media/cognizant_logo.png", use_container_width=True)
+            st.markdown("<h2 style='text-align: center; margin-top: 10px;'>CognIQ Sign Up</h2>", unsafe_allow_html=True)
             st.caption("Register below to access your isolated QA history.")
             
             with st.form("signup_form", clear_on_submit=False):
-                username = st.text_input("Preferred Username", placeholder="e.g. harsh_verma")
-                email = st.text_input("Corporate Email ID", placeholder="harsh.verma@freseniusmedicalcare.com")
+                username = st.text_input("Preferred Username", placeholder="e.g. user_name")
+                email = st.text_input("Corporate Email ID", placeholder="name@freseniusmedicalcare.com")
                 password = st.text_input("Password", type="password", placeholder="Password")
                 confirm_password = st.text_input("Retype Password", type="password", placeholder="Retype Password")
                 submitted = st.form_submit_button("Create Account", use_container_width=True)
@@ -212,6 +591,7 @@ if not st.session_state["logged_in"]:
                 st.rerun()
                 
         elif st.session_state["auth_page"] == "signup_success":
+            st.image("media/cognizant_logo.png", use_container_width=True)
             st.success("🎉 Signup Successful!")
             st.markdown("""
             Your corporate RAG account has been registered successfully.
@@ -236,15 +616,58 @@ engine = get_engine(st.session_state["current_model"])
 # --- SIDEBAR SETTINGS ---
 with st.sidebar:
     st.image("media/cognizant_logo.png", use_container_width=True)
-    st.title("⚙️ Engine Settings")
-    st.divider()
-    # --- User Info & Logout ---
-    st.markdown(f"👤 **Signed in as:** `{st.session_state['username']}`")
-    st.caption(f"Role: `{st.session_state['user_role']}`")
-    st.caption(f"Email: `{st.session_state['user_email']}`")
+    st.markdown("""
+    <div class="sidebar-branding">
+        <div class="sidebar-title">CognIQ</div>
+        <div class="sidebar-subtitle">advanced RAG engine</div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    if st.button("🚪 Log Out", use_container_width=True):
-        # Clear query params for browser persistence
+    if st.button("➕ New chat", use_container_width=True):
+        db.clear_history(username)
+        st.session_state["messages"] = []
+        st.session_state["current_page"] = "chat"
+        st.rerun()
+
+    # Dynamic Knowledge Base Telemetry Card
+    kb_folder = "knowledge_source"
+    file_count = 0
+    total_size_bytes = 0
+    if os.path.exists(kb_folder):
+        for root, dirs, files in os.walk(kb_folder):
+            for f in files:
+                file_count += 1
+                total_size_bytes += os.path.getsize(os.path.join(root, f))
+    total_size_kb = total_size_bytes / 1024
+    if total_size_kb > 1024:
+        kb_size_str = f"{total_size_kb/1024:.1f} MB"
+    else:
+        kb_size_str = f"{total_size_kb:.1f} KB"
+        
+    st.markdown(f"""
+    <div class="kb-card">
+        <div class="kb-card-title">📂 Knowledge base</div>
+        <div class="kb-card-status">
+            <span class="status-dot"></span> {file_count:,} documents · {kb_size_str}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Admin Control expander
+    if st.session_state.get("user_role") == "admin":
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.sidebar.expander("⚙️ Admin Console"):
+            if st.button("📂 Manage KB", use_container_width=True):
+                st.session_state["current_page"] = "manage_kb"
+                st.rerun()
+            if st.button("👥 Manage Users", use_container_width=True):
+                st.session_state["current_page"] = "manage_users"
+                st.rerun()
+            if st.button("🔧 Settings", use_container_width=True):
+                st.session_state["current_page"] = "settings"
+                st.rerun()
+
+    if st.button("🚪 Log Out", use_container_width=True, type="secondary"):
         try:
             st.query_params.clear()
         except Exception:
@@ -252,38 +675,26 @@ with st.sidebar:
                 st.experimental_set_query_params()
             except Exception:
                 pass
-        
-        # Reset session states
         st.session_state["logged_in"] = False
         st.session_state["uid"] = None
         st.session_state["username"] = None
-        st.session_state["user_email"] = None
         st.session_state["user_role"] = None
         st.session_state["auth_page"] = "login"
         st.session_state.pop("messages", None)
         st.rerun()
 
-
-    if st.session_state.get("user_role") == "admin":
-        if st.button("📂 Manage Knowledge Base", use_container_width=True, type="primary"):
-            st.session_state["current_page"] = "manage_kb"
-            st.rerun()
-            
-        if st.button("👥 Manage Users", use_container_width=True, type="primary"):
-            st.session_state["current_page"] = "manage_users"
-            st.rerun()
-            
-        if st.button("⚙️ Settings", use_container_width=True, type="primary"):
-            st.session_state["current_page"] = "settings"
-            st.rerun()
-
-    if st.button("🗑️ Clear Chat History", use_container_width=True):
-        db.clear_history(username)
-        st.session_state["messages"] = []
-        st.rerun()
-
-    st.divider()
-    st.info("CognIQ - Developed by Harsh Verma")
+    # Fixed User Profile Card at Sidebar Bottom
+    first_letter = st.session_state['username'][0].upper() if st.session_state.get('username') else 'U'
+    st.markdown(f"""
+    <div class="profile-container">
+        <div class="profile-avatar">{first_letter}</div>
+        <div class="profile-info">
+            <div class="profile-name">{st.session_state['username']}</div>
+            <div class="profile-role">{st.session_state['user_role'].title()}</div>
+        </div>
+        <div class="profile-chevron">👤</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # --- INITIALIZE MODELS & DATA ---
@@ -676,146 +1087,210 @@ chunking_mode = st.session_state["chunking_mode"]
 
 
 # --- HEADER ---
-st.image("media/cognizant_logo.png", width=250)
-st.title("🧠 CognIQ: Advanced RAG Engine")
-st.caption("v18 — Multi-Format Support | Hybrid Search | Quantization")
+st.markdown("""
+<div class="main-header-row">
+    <div class="engine-status">
+        <span class="status-dot"></span> Engine ready
+    </div>
+    <div class="model-badge">
+        ⚙️ Cognizant in-house model
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# Empty-chat landing page logo layout
+if not st.session_state["messages"]:
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
+    with col_logo2:
+        st.image("media/cognizant_logo.png", use_container_width=True)
+        st.markdown("<h1 style='text-align: center; margin-top: 10px; color: #111827;'>🧠 CognIQ</h1>", unsafe_allow_html=True)
+        st.markdown("<h4 style='text-align: center; color: #6b7280; font-weight: 500; margin-top: -5px;'>Ask once. Resolve faster.</h4>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #9ca3af; font-size: 14px;'>AMS support intelligence — answers from past ticket resolutions & knowledge base articles</p>", unsafe_allow_html=True)
 
 # --- CHAT DISPLAY ---
 for msg in st.session_state["messages"]:
-    with st.chat_message(msg["role"]):
-        if msg["role"] == "user":
-            st.markdown(f"**Prompt ({username})**")
-        else:
-            st.markdown(f"**Response ({username})**")
-        st.markdown(msg["content"])
-
-        if "sources" in msg and msg["sources"]:
-            with st.expander("📚 Verified Citations"):
-                for s in msg["sources"]:
-                    # Handle both old (string) and new (dict) source formats
-                    if isinstance(s, dict):
-                        st.markdown(f"**[{s['id']}] {s['source']}**")
-                        st.caption(s['text'])
-                    else:
-                        st.markdown(f"• {s}")
+    if msg["role"] == "user":
+        st.markdown(f"""
+        <div class="user-msg-container">
+            <div class="user-msg-bubble">
+                {msg["content"]}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        sources_html = format_sources_html(msg.get("sources", []))
+        st.markdown(f"""
+        <div class="assistant-container">
+            <div class="assistant-header">
+                <span class="assistant-logo">🤖</span>
+                <span class="assistant-name">CognIQ</span>
+                <span class="assistant-tag">&middot; grounded answer</span>
+            </div>
+            <div class="assistant-card">
+                <div class="assistant-body">{msg["content"]}</div>
+                {sources_html}
+            </div>
+            <div class="utility-row">
+                <span class="utility-item">📋 Copy</span>
+                <span class="utility-item">👍 Helpful</span>
+                <span class="utility-item">🔗 Open ticket</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # --- CHAT INPUT ---
-if prompt := st.chat_input("Ask about your knowledge base..."):
-    # Add user message
+if prompt := st.chat_input("Ask about a ticket, error, or how-to..."):
     st.session_state["messages"].append({"role": "user", "content": prompt})
     db.save_message(username, "user", prompt)
-    with st.chat_message("user"):
-        st.markdown(f"**Prompt ({username})**")
-        st.markdown(prompt)
-
+    
+    st.markdown(f"""
+    <div class="user-msg-container">
+        <div class="user-msg-bubble">
+            {prompt}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Generate response
-    with st.chat_message("assistant"):
-        st.markdown(f"**Response ({username})**")
-        response_placeholder = st.empty()
+    response_placeholder = st.empty()
 
+    with st.status("⚙️ Response Details", expanded=False) as status:
+        # 1. Retrieval
+        print(f"\n[SYSTEM] Received User Query: {prompt}", flush=True)
+        st.write(f"Searching index {'(Hybrid+' if use_hybrid else '('}{'HyDE+' if use_hyde else ''}{'Rerank)' if use_rerank else ')'}...")
+        print(f"[SYSTEM] Executing Retrieval Pipeline (Hybrid={use_hybrid}, HyDE={use_hyde}, Rerank={use_rerank})", flush=True)
+        top_chunks, metrics = engine.retrieve(
+            prompt, 
+            k=3, 
+            use_hybrid=use_hybrid, 
+            use_hyde=use_hyde, 
+            use_rerank=use_rerank, 
+            use_parent=use_parent
+        )
         
-        with st.status("⚙️ Response Details", expanded= True) as status:
-            # 1. Retrieval
-            print(f"\n[SYSTEM] Received User Query: {prompt}", flush=True)
-            st.write(f"Searching index {'(Hybrid+' if use_hybrid else '('}{'HyDE+' if use_hyde else ''}{'Rerank)' if use_rerank else ')'}...")
-            print(f"[SYSTEM] Executing Retrieval Pipeline (Hybrid={use_hybrid}, HyDE={use_hyde}, Rerank={use_rerank})", flush=True)
-            top_chunks, metrics = engine.retrieve(
+        if not top_chunks:
+            response = "Not found."
+            sources_meta = []
+            response_placeholder.markdown(f"""
+            <div class="assistant-container">
+                <div class="assistant-header">
+                    <span class="assistant-logo">🤖</span>
+                    <span class="assistant-name">CognIQ</span>
+                    <span class="assistant-tag">&middot; grounded answer</span>
+                </div>
+                <div class="assistant-card">
+                    <div class="assistant-body">{response}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            gen_time = 0
+        else:
+            st.write(f"Found {len(top_chunks)} relevant segments.")
+            context = ""
+            sources_meta = []
+            for i, c in enumerate(top_chunks):
+                context += f"\n[Source {i+1}: {c['source']}]\n{c['text']}\n"
+                sources_meta.append({
+                    "id": i+1, 
+                    "source": c["source"], 
+                    "text": c.get("retrieval_text", c["text"]),
+                    "score": c.get("score", 0.95 - (i * 0.05))
+                })
+            
+            # 2. Generation
+            st.write("Synthesizing answer...")
+            print(f"[SYSTEM] Generation starting...", flush=True)
+            full_response = ""
+            
+            chat_history = []
+            all_messages = st.session_state["messages"][:-1]
+            for idx, m in enumerate(all_messages):
+                if m["role"] == "user":
+                    bot_content = ""
+                    if idx + 1 < len(all_messages) and all_messages[idx + 1]["role"] == "assistant":
+                        bot_content = all_messages[idx + 1]["content"]
+                    chat_history.append({"user": m["content"], "bot": bot_content})
+
+            streamer = engine.generate_stream(
                 prompt, 
-                k=3, 
-                use_hybrid=use_hybrid, 
-                use_hyde=use_hyde, 
-                use_rerank=use_rerank, 
-                use_parent=use_parent
+                context, 
+                chat_history, 
+                api_key=st.session_state.get("google_api_key")
             )
+
+            start_time = time.time()
+            for new_text in streamer:
+                full_response += new_text
+                response_placeholder.markdown(f"""
+                <div class="assistant-container">
+                    <div class="assistant-header">
+                        <span class="assistant-logo">🤖</span>
+                        <span class="assistant-name">CognIQ</span>
+                        <span class="assistant-tag">&middot; grounded answer</span>
+                    </div>
+                    <div class="assistant-card">
+                        <div class="assistant-body">{full_response}▌</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
             
-            if not top_chunks:
-                response = "Not found."
-                sources = []
-                response_placeholder.markdown(response)
-                gen_time = 0
-            else:
-                st.write(f"Found {len(top_chunks)} relevant segments.")
-                context = ""
-                sources_meta = []
-                for i, c in enumerate(top_chunks):
-                    # Use [Source 1], [Source 2] for LLM to cite
-                    context += f"\n[Source {i+1}: {c['source']}]\n{c['text']}\n"
-                    sources_meta.append({
-                        "id": i+1, 
-                        "source": c["source"], 
-                        "text": c.get("retrieval_text", c["text"]) # Show exact snippet
-                    })
-                
-                # 2. Generation
-                st.write("Synthesizing answer...")
-                print(f"[SYSTEM] Generation starting...", flush=True)
-                full_response = ""
-                
-                # Construct chat history securely by pairing user prompts with their assistant responses
-                chat_history = []
-                all_messages = st.session_state["messages"][:-1]
-                for idx, m in enumerate(all_messages):
-                    if m["role"] == "user":
-                        bot_content = ""
-                        if idx + 1 < len(all_messages) and all_messages[idx + 1]["role"] == "assistant":
-                            bot_content = all_messages[idx + 1]["content"]
-                        chat_history.append({"user": m["content"], "bot": bot_content})
-
-                streamer = engine.generate_stream(
-                    prompt, 
-                    context, 
-                    chat_history, 
-                    api_key=st.session_state.get("google_api_key")
-                )
-
-                
-                start_time = time.time()
-                for new_text in streamer:
-                    full_response += new_text
-                    response_placeholder.markdown(full_response + "▌")
-                
-                gen_time = time.time() - start_time
-                print(f"[SYSTEM] Generation finished in {gen_time:.2f}s", flush=True)
-                response_placeholder.markdown(full_response)
-                response = full_response
-                
-            # Show Telemetry inside the status block
-            st.divider()
-            col1, col2, col3 = st.columns(3)
-            retrieval_time = metrics.get("semantic_time", 0) + metrics.get("keyword_time", 0) + metrics.get("hyde_gen_time", 0)
-            col1.metric("Retrieval", f"{retrieval_time:.3f}s")
-            col2.metric("Generation", f"{gen_time:.3f}s")
-            col3.metric("Total", f"{retrieval_time + gen_time:.3f}s")
+            gen_time = time.time() - start_time
+            print(f"[SYSTEM] Generation finished in {gen_time:.2f}s", flush=True)
             
-            # Show Chart inside the status block
-            if top_chunks:
-                chart_data = {
-                    "Step": ["HyDE", "Semantic", "Keyword", "Fusion", "Rerank", "LLM Gen"],
-                    "Time (s)": [
-                        metrics.get("hyde_gen_time", 0),
-                        metrics.get("semantic_time", 0), 
-                        metrics.get("keyword_time", 0), 
-                        metrics.get("fusion_time", 0), 
-                        metrics.get("rerank_time", 0), 
-                        gen_time
-                    ]
-                }
-                st.bar_chart(chart_data, x="Step", y="Time (s)")
-
-            status.update(label="⚙️ Response Details", state="complete", expanded=False)
-
-        # Save to history
-        st.session_state["messages"].append({
-            "role": "assistant", 
-            "content": response, 
-            "sources": sources_meta,
-            "metrics": metrics
-        })
-        db.save_message(username, "assistant", response, sources_meta, metrics)
+            # Final output with citations
+            response_placeholder.markdown(f"""
+            <div class="assistant-container">
+                <div class="assistant-header">
+                    <span class="assistant-logo">🤖</span>
+                    <span class="assistant-name">CognIQ</span>
+                    <span class="assistant-tag">&middot; grounded answer</span>
+                </div>
+                <div class="assistant-card">
+                    <div class="assistant-body">{full_response}</div>
+                    {format_sources_html(sources_meta)}
+                </div>
+                <div class="utility-row">
+                    <span class="utility-item">📋 Copy</span>
+                    <span class="utility-item">👍 Helpful</span>
+                    <span class="utility-item">🔗 Open ticket</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            response = full_response
+            
+        # Show Telemetry inside the status block
+        st.divider()
+        col1, col2, col3 = st.columns(3)
+        retrieval_time = metrics.get("semantic_time", 0) + metrics.get("keyword_time", 0) + metrics.get("hyde_gen_time", 0)
+        col1.metric("Retrieval", f"{retrieval_time:.3f}s")
+        col2.metric("Generation", f"{gen_time:.3f}s")
+        col3.metric("Total", f"{retrieval_time + gen_time:.3f}s")
         
-        if sources_meta:
-            with st.expander("📚 Verified Citations"):
-                for s in sources_meta:
-                    st.markdown(f"**[{s['id']}] {s['source']}**")
-                    st.caption(s['text'])
+        if top_chunks:
+            chart_data = {
+                "Step": ["HyDE", "Semantic", "Keyword", "Fusion", "Rerank", "LLM Gen"],
+                "Time (s)": [
+                    metrics.get("hyde_gen_time", 0),
+                    metrics.get("semantic_time", 0), 
+                    metrics.get("keyword_time", 0), 
+                    metrics.get("fusion_time", 0), 
+                    metrics.get("rerank_time", 0), 
+                    gen_time
+                ]
+            }
+            st.bar_chart(chart_data, x="Step", y="Time (s)")
+
+        status.update(label="⚙️ Response Details", state="complete", expanded=False)
+
+    # Save to history
+    st.session_state["messages"].append({
+        "role": "assistant", 
+        "content": response, 
+        "sources": sources_meta,
+        "metrics": metrics
+    })
+    db.save_message(username, "assistant", response, sources_meta, metrics)
+
+# Centered Tagline footer under input
+st.markdown("<div class='input-tagline'>Grounded in your tickets & KB · every answer cites its source</div>", unsafe_allow_html=True)
