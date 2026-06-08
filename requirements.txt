@@ -13,3 +13,4 @@ lxml
 llama-cpp-python
 huggingface-hub
 google-generativeai
+openpyxl

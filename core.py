@@ -133,6 +133,64 @@ def semantic_chunk_text(text, embedder, threshold=0.5, max_chunk_size=1200):
         
     return chunks
 
+def extract_text_from_excel(filepath):
+    try:
+        import openpyxl
+    except ImportError:
+        print("[!] openpyxl is required for Excel parsing. Run `pip install openpyxl`")
+        return ""
+        
+    try:
+        wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+        text_parts = []
+        for sheet_name in wb.sheetnames:
+            sheet = wb[sheet_name]
+            rows = list(sheet.iter_rows(values_only=True))
+            if not rows:
+                continue
+            
+            # Find the header row (first non-empty row)
+            header_row = None
+            header_idx = 0
+            for idx, r in enumerate(rows):
+                if any(cell is not None for cell in r):
+                    header_row = r
+                    header_idx = idx
+                    break
+            
+            if header_row is None:
+                continue
+            
+            headers = []
+            for col_idx, cell in enumerate(header_row):
+                if cell is not None and str(cell).strip():
+                    headers.append(str(cell).strip())
+                else:
+                    headers.append(f"Column_{openpyxl.utils.get_column_letter(col_idx + 1)}")
+            
+            sheet_text = []
+            for row_idx, r in enumerate(rows[header_idx + 1:], start=header_idx + 2):
+                if not any(cell is not None for cell in r):
+                    continue # Skip empty rows
+                
+                row_parts = []
+                for col_idx, cell in enumerate(r):
+                    if col_idx < len(headers):
+                        val = str(cell).strip() if cell is not None else ""
+                        if val:
+                            row_parts.append(f"{headers[col_idx]}: {val}")
+                
+                if row_parts:
+                    sheet_text.append(f"Sheet: {sheet_name} | Row {row_idx}: " + " | ".join(row_parts))
+            
+            if sheet_text:
+                text_parts.append(f"--- Sheet: {sheet_name} ---\n" + "\n".join(sheet_text))
+                
+        return "\n\n".join(text_parts)
+    except Exception as e:
+        print(f"[!] Error reading Excel file {filepath}: {e}")
+        return ""
+
 def extract_text_from_file(filepath):
     ext = os.path.splitext(filepath)[1].lower()
     try:
@@ -148,12 +206,13 @@ def extract_text_from_file(filepath):
         elif ext == ".docx":
             doc = docx.Document(filepath)
             return "\n".join([para.text for para in doc.paragraphs])
+        elif ext in (".xlsx", ".xlsm"):
+            return extract_text_from_excel(filepath)
         elif ext == ".html":
             try:
                 from bs4 import BeautifulSoup
                 with open(filepath, "r", encoding="utf-8") as f:
                     soup = BeautifulSoup(f.read(), "html.parser")
-                    # Extract text, separate block elements with newlines
                     return soup.get_text(separator="\n", strip=True)
             except ImportError:
                 print("[!] BeautifulSoup4 is required for HTML parsing. Run `pip install beautifulsoup4`")
@@ -283,7 +342,7 @@ class RAGEngine:
             if not os.path.exists(folder): os.makedirs(folder)
             
             # Accept common document formats including HTML/HTM
-            valid_extensions = (".txt", ".pdf", ".docx", ".html", ".htm")
+            valid_extensions = (".txt", ".pdf", ".docx", ".html", ".htm", ".xlsx", ".xlsm")
             parent_id_counter = 0
 
             # Walk the knowledge folder recursively so nested namespaces/folders are supported
