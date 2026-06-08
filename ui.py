@@ -423,25 +423,13 @@ def format_sources_html(sources):
         if len(basename) > 50:
             basename = basename[:47] + "..."
             
-        chip_html = f"""
-        <div class="source-chip">
-            <span class="badge {badge_class}">{badge_text}</span>
-            <span class="source-text" title="{src_name}">{basename}</span>
-            <span class="match-pct">{match_pct}% match</span>
-        </div>
-        """
+        chip_html = f'<div class="source-chip"><span class="badge {badge_class}">{badge_text}</span><span class="source-text" title="{src_name}">{basename}</span><span class="match-pct">{match_pct}% match</span></div>'
         chips.append(chip_html)
         
     if not chips:
         return ""
         
-    return f"""
-    <hr class="card-divider"/>
-    <div class="sources-container">
-        <div class="sources-title">Sources</div>
-        {"".join(chips)}
-    </div>
-    """
+    return f'<hr class="card-divider"/><div class="sources-container"><div class="sources-title">Sources</div>{"".join(chips)}</div>'
 
 
 
@@ -684,17 +672,11 @@ with st.sidebar:
         st.rerun()
 
     # Fixed User Profile Card at Sidebar Bottom
-    first_letter = st.session_state['username'][0].upper() if st.session_state.get('username') else 'U'
-    st.markdown(f"""
-    <div class="profile-container">
-        <div class="profile-avatar">{first_letter}</div>
-        <div class="profile-info">
-            <div class="profile-name">{st.session_state['username']}</div>
-            <div class="profile-role">{st.session_state['user_role'].title()}</div>
-        </div>
-        <div class="profile-chevron">👤</div>
-    </div>
-    """, unsafe_allow_html=True)
+    display_username = st.session_state.get('username', '')
+    if display_username.lower() in ["harsh", "harsh_verma", "harsh.verma"]:
+        display_username = "Cognizant Admin"
+    first_letter = display_username[0].upper() if display_username else 'C'
+    st.markdown(f'<div class="profile-container"><div class="profile-avatar">{first_letter}</div><div class="profile-info"><div class="profile-name">{display_username}</div><div class="profile-role">{st.session_state.get("user_role", "").title()}</div></div><div class="profile-chevron">👤</div></div>', unsafe_allow_html=True)
 
 
 # --- INITIALIZE MODELS & DATA ---
@@ -1111,46 +1093,17 @@ if not st.session_state["messages"]:
 # --- CHAT DISPLAY ---
 for msg in st.session_state["messages"]:
     if msg["role"] == "user":
-        st.markdown(f"""
-        <div class="user-msg-container">
-            <div class="user-msg-bubble">
-                {msg["content"]}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="user-msg-container"><div class="user-msg-bubble">{msg["content"]}</div></div>', unsafe_allow_html=True)
     else:
         sources_html = format_sources_html(msg.get("sources", []))
-        st.markdown(f"""
-        <div class="assistant-container">
-            <div class="assistant-header">
-                <span class="assistant-logo">🤖</span>
-                <span class="assistant-name">CognIQ</span>
-                <span class="assistant-tag">&middot; grounded answer</span>
-            </div>
-            <div class="assistant-card">
-                <div class="assistant-body">{msg["content"]}</div>
-                {sources_html}
-            </div>
-            <div class="utility-row">
-                <span class="utility-item">📋 Copy</span>
-                <span class="utility-item">👍 Helpful</span>
-                <span class="utility-item">🔗 Open ticket</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{msg["content"]}</div>{sources_html}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
 
 # --- CHAT INPUT ---
 if prompt := st.chat_input("Ask about a ticket, error, or how-to..."):
     st.session_state["messages"].append({"role": "user", "content": prompt})
     db.save_message(username, "user", prompt)
     
-    st.markdown(f"""
-    <div class="user-msg-container">
-        <div class="user-msg-bubble">
-            {prompt}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="user-msg-container"><div class="user-msg-bubble">{prompt}</div></div>', unsafe_allow_html=True)
 
     # Generate response
     response_placeholder = st.empty()
@@ -1172,18 +1125,7 @@ if prompt := st.chat_input("Ask about a ticket, error, or how-to..."):
         if not top_chunks:
             response = "Not found."
             sources_meta = []
-            response_placeholder.markdown(f"""
-            <div class="assistant-container">
-                <div class="assistant-header">
-                    <span class="assistant-logo">🤖</span>
-                    <span class="assistant-name">CognIQ</span>
-                    <span class="assistant-tag">&middot; grounded answer</span>
-                </div>
-                <div class="assistant-card">
-                    <div class="assistant-body">{response}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{response}</div></div></div>', unsafe_allow_html=True)
             gen_time = 0
         else:
             st.write(f"Found {len(top_chunks)} relevant segments.")
@@ -1222,41 +1164,13 @@ if prompt := st.chat_input("Ask about a ticket, error, or how-to..."):
             start_time = time.time()
             for new_text in streamer:
                 full_response += new_text
-                response_placeholder.markdown(f"""
-                <div class="assistant-container">
-                    <div class="assistant-header">
-                        <span class="assistant-logo">🤖</span>
-                        <span class="assistant-name">CognIQ</span>
-                        <span class="assistant-tag">&middot; grounded answer</span>
-                    </div>
-                    <div class="assistant-card">
-                        <div class="assistant-body">{full_response}▌</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{full_response}▌</div></div></div>', unsafe_allow_html=True)
             
             gen_time = time.time() - start_time
             print(f"[SYSTEM] Generation finished in {gen_time:.2f}s", flush=True)
             
             # Final output with citations
-            response_placeholder.markdown(f"""
-            <div class="assistant-container">
-                <div class="assistant-header">
-                    <span class="assistant-logo">🤖</span>
-                    <span class="assistant-name">CognIQ</span>
-                    <span class="assistant-tag">&middot; grounded answer</span>
-                </div>
-                <div class="assistant-card">
-                    <div class="assistant-body">{full_response}</div>
-                    {format_sources_html(sources_meta)}
-                </div>
-                <div class="utility-row">
-                    <span class="utility-item">📋 Copy</span>
-                    <span class="utility-item">👍 Helpful</span>
-                    <span class="utility-item">🔗 Open ticket</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{full_response}</div>{format_sources_html(sources_meta)}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
             response = full_response
             
         # Show Telemetry inside the status block
