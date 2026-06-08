@@ -2,7 +2,7 @@ import time
 from core import RAGEngine
 
 # =====================================================
-# 🧠 AskBot (Terminal Interface)
+# 🧠 CognIQ (Terminal Interface)
 # =====================================================
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
@@ -13,7 +13,7 @@ cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 QUANTIZATION_MODE = "4bit" 
 USE_HYBRID = True
 
-print(f"🔄 Starting AskBot (Terminal Mode)...")
+print(f"🔄 Starting CognIQ (Terminal Mode)...")
 
 # Initialize Engine
 engine = RAGEngine(model_name, embed_model_name, cross_encoder_model_name)
@@ -24,7 +24,7 @@ engine.load_models(quantization_mode=QUANTIZATION_MODE)
 # Process Knowledge Base
 engine.process_knowledge_base()
 
-print("\n🤖 AskBot Ready! Type 'quit' to exit.\n")
+print("\n🤖 CognIQ Ready! Type 'quit' to exit.\n")
 
 chat_history = []
 

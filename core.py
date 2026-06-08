@@ -140,6 +140,7 @@ def extract_text_from_excel(filepath):
         print("[!] openpyxl is required for Excel parsing. Run `pip install openpyxl`")
         return ""
         
+    wb = None
     try:
         wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
         text_parts = []
@@ -190,6 +191,9 @@ def extract_text_from_excel(filepath):
     except Exception as e:
         print(f"[!] Error reading Excel file {filepath}: {e}")
         return ""
+    finally:
+        if wb is not None:
+            wb.close()
 
 def extract_text_from_file(filepath):
     ext = os.path.splitext(filepath)[1].lower()

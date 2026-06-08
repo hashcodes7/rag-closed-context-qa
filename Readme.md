@@ -1,6 +1,6 @@
-# SourceIQ – Advanced Local Multi-Document RAG Chatbot
+# CognIQ – Advanced Local Multi-Document RAG Chatbot
 
-SourceIQ is a local RAG chatbot that retrieves and answers questions from multiple documents using chunk-based retrieval and a Transformer LLM.
+CognIQ is a local RAG chatbot that retrieves and answers questions from multiple documents using chunk-based retrieval and a Transformer LLM.
 
 ---
 

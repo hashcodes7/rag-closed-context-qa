@@ -62,10 +62,10 @@ def download_model_ui(repo_id, pattern="q4_k_m.gguf"):
         return None
 
 # =====================================================
-# 🌊 AskBot (Streamlit UI)
+# 🌊 CognIQ (Streamlit UI)
 # =====================================================
 
-st.set_page_config(page_title="AskBot", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="CognIQ", page_icon="🧠", layout="wide")
 
 
 
@@ -144,7 +144,7 @@ if not st.session_state["logged_in"]:
         st.markdown("<br><br>", unsafe_allow_html=True)
         
         if st.session_state["auth_page"] == "login":
-            st.markdown("<h2 style='text-align: center;'>🧠 AskBot Sign In</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align: center;'>🧠 CognIQ Sign In</h2>", unsafe_allow_html=True)
             st.caption("Access the secure local corporate RAG assistant.")
             
             with st.form("login_form", clear_on_submit=False):
@@ -179,12 +179,12 @@ if not st.session_state["logged_in"]:
                         else:
                             st.error("Invalid email ID or password.")
             
-            if st.button("New to AskBot? Sign Up here", use_container_width=True):
+            if st.button("New to CognIQ? Sign Up here", use_container_width=True):
                 st.session_state["auth_page"] = "signup"
                 st.rerun()
                 
         elif st.session_state["auth_page"] == "signup":
-            st.markdown("<h2 style='text-align: center;'>📝 AskBot Sign Up</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align: center;'>📝 CognIQ Sign Up</h2>", unsafe_allow_html=True)
             st.caption("Register below to access your isolated QA history.")
             
             with st.form("signup_form", clear_on_submit=False):
@@ -235,6 +235,7 @@ engine = get_engine(st.session_state["current_model"])
 
 # --- SIDEBAR SETTINGS ---
 with st.sidebar:
+    st.image("media/cognizant_logo.png", use_container_width=True)
     st.title("⚙️ Engine Settings")
     st.divider()
     # --- User Info & Logout ---
@@ -282,7 +283,7 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
-    st.info("AskBot - Developed by Harsh Verma")
+    st.info("CognIQ - Developed by Harsh Verma")
 
 
 # --- INITIALIZE MODELS & DATA ---
@@ -350,8 +351,9 @@ if st.session_state.get("current_page") == "manage_kb":
         st.session_state["current_page"] = "chat"
         st.rerun()
         
+    st.image("media/cognizant_logo.png", width=200)
     st.title("📂 Document & Knowledge Base Manager")
-    st.caption("View, search, upload, and delete documents supporting the AskBot RAG engine.")
+    st.caption("View, search, upload, and delete documents supporting the CognIQ RAG engine.")
     
     if st.button("⬅️ Back to Chat", use_container_width=True, type="secondary"):
         st.session_state["current_page"] = "chat"
@@ -465,6 +467,7 @@ if st.session_state.get("current_page") == "manage_users":
         st.session_state["current_page"] = "chat"
         st.rerun()
         
+    st.image("media/cognizant_logo.png", width=200)
     st.title("👥 User Administration Dashboard")
     st.caption("Admin Mode — View user accounts, change roles, edit details, and delete profiles with history.")
     
@@ -558,6 +561,7 @@ if st.session_state.get("current_page") == "settings":
         st.session_state["current_page"] = "chat"
         st.rerun()
         
+    st.image("media/cognizant_logo.png", width=200)
     st.title("⚙️ RAG Engine Configurations")
     st.caption("Configure local models, retrieval algorithms, quantization modes, and system restarts.")
     
@@ -672,7 +676,8 @@ chunking_mode = st.session_state["chunking_mode"]
 
 
 # --- HEADER ---
-st.title("🧠 AskBot: Advanced RAG Engine")
+st.image("media/cognizant_logo.png", width=250)
+st.title("🧠 CognIQ: Advanced RAG Engine")
 st.caption("v18 — Multi-Format Support | Hybrid Search | Quantization")
 
 # --- CHAT DISPLAY ---
