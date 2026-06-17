@@ -230,18 +230,24 @@ div[data-testid="stChatMessage"] {
 header {display: none !important;}
 footer {display: none !important;}
 
-/* Adjust bottom container positioning and layout */
-div[data-testid="stBottom"] {
-    padding-bottom: 8px !important;
-    background-color: #ffffff !important;
-}
-div[data-testid="stBottom"] > div {
-    gap: 6px !important;
-    padding-bottom: 0px !important;
-}
+/* Adjust chat input container positioning and layout */
 div[data-testid="stChatInput"] {
-    margin-bottom: 0px !important;
-    padding-bottom: 0px !important;
+    bottom: 10px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    background-color: transparent !important;
+}
+
+/* Add tagline above the chat input box */
+div[data-testid="stChatInput"]::before {
+    content: "Grounded in your tickets & KB · every answer cites its source";
+    display: block;
+    text-align: center;
+    font-size: 12px;
+    color: #9ca3af;
+    margin-bottom: 8px;
+    width: 100%;
 }
 
 /* Custom styles for sidebar elements */
@@ -392,16 +398,7 @@ div[data-testid="stSidebarUserContent"] {
     gap: 6px;
 }
 
-/* Input Tagline spacing */
-.input-tagline {
-    text-align: center;
-    font-size: 12px;
-    color: #9ca3af;
-    margin-top: 0px !important;
-    margin-bottom: 0px !important;
-    padding-top: 4px !important;
-    padding-bottom: 4px !important;
-}
+/* .input-tagline CSS removed - handled via ::before pseudo-element */
 </style>
 """, unsafe_allow_html=True)
 
@@ -1146,11 +1143,7 @@ for msg in st.session_state["messages"]:
 is_offline = bool(st.session_state.get("engine_error") or not st.session_state.get("models_loaded"))
 chat_placeholder = "Ask about a ticket, error, or how-to..." if not is_offline else "RAG Engine is currently offline..."
 
-with st.bottom():
-    st.markdown("<div class='input-tagline'>Grounded in your tickets & KB · every answer cites its source</div>", unsafe_allow_html=True)
-    prompt = st.chat_input(chat_placeholder, disabled=is_offline)
-
-if prompt:
+if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
     st.session_state["messages"].append({"role": "user", "content": prompt})
     db.save_message(username, "user", prompt)
     
