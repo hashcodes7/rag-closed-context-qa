@@ -337,7 +337,7 @@ class RAGEngine:
     def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False, chunking_mode="semantic"):
         if not force_reindex and os.path.exists(cache_file) and os.path.exists(index_file):
             print("[*] Loading cache...")
-            data = torch.load(cache_file)
+            data = torch.load(cache_file, weights_only=False)
             self.chunks = data.get("chunks", [])
             self.parent_chunks = data.get("parent_chunks", {})
             self.faiss_index = faiss.read_index(index_file)

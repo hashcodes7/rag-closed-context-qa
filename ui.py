@@ -689,6 +689,14 @@ chunking_mode = st.session_state["chunking_mode"]
 
 
 if "models_loaded" not in st.session_state:
+    st.session_state["models_loaded"] = False
+if "engine_error" not in st.session_state:
+    st.session_state["engine_error"] = None
+
+username = st.session_state["username"]
+
+# Only initialize engine if on chat page and not already loaded/errored
+if not st.session_state["models_loaded"] and st.session_state.get("current_page") == "chat" and not st.session_state.get("engine_error"):
     repo_id = st.session_state["current_model"]
     
     is_cached = False
@@ -723,16 +731,23 @@ if "models_loaded" not in st.session_state:
         st.stop()
         
         print(f"[SYSTEM] Beginning engine initialization...", flush=True)
-    with st.status("🚀 Initializing Engine...", expanded=True) as status:
-        st.write("🔄 Loading AI Models...")
-        print(f"[SYSTEM] Loading model weights for {st.session_state['current_model']}...", flush=True)
-        engine.load_models(quantization_mode=quant_mode)
-        st.write(f"📂 Indexing Knowledge Base ({chunking_mode})...")
-        print(f"[SYSTEM] Indexing knowledge base with {chunking_mode} chunking...", flush=True)
-        engine.process_knowledge_base(chunking_mode=chunking_mode)
-        status.update(label="✅ Engine Ready!", state="complete", expanded=False)
-        print("[SYSTEM] Engine ready.", flush=True)
-    st.session_state["models_loaded"] = True
+    try:
+        with st.status("🚀 Initializing Engine...", expanded=True) as status:
+            st.write("🔄 Loading AI Models...")
+            print(f"[SYSTEM] Loading model weights for {st.session_state['current_model']}...", flush=True)
+            engine.load_models(quantization_mode=quant_mode)
+            st.write(f"📂 Indexing Knowledge Base ({chunking_mode})...")
+            print(f"[SYSTEM] Indexing knowledge base with {chunking_mode} chunking...", flush=True)
+            engine.process_knowledge_base(chunking_mode=chunking_mode)
+            status.update(label="✅ Engine Ready!", state="complete", expanded=False)
+            print("[SYSTEM] Engine ready.", flush=True)
+        st.session_state["models_loaded"] = True
+        st.session_state["engine_error"] = None
+    except Exception as e:
+        import traceback
+        err_trace = traceback.format_exc()
+        print(f"[SYSTEM] Engine load failed:\n{err_trace}", flush=True)
+        st.session_state["engine_error"] = f"{str(e)}"
 
 username = st.session_state["username"]
 
@@ -1022,6 +1037,14 @@ if st.session_state.get("current_page") == "settings":
                 st.session_state["current_model"] = final_model_name
                 st.cache_resource.clear()
                 st.session_state.pop("models_loaded", None) # Force re-load
+                st.session_state.pop("engine_error", None)  # Reset error status
+                st.rerun()
+                
+        if st.session_state.get("engine_error"):
+            st.error(f"❌ RAG Engine Error: {st.session_state['engine_error']}")
+            if st.button("🔄 Retry Engine Load", use_container_width=True):
+                st.session_state.pop("models_loaded", None)
+                st.session_state.pop("engine_error", None)
                 st.rerun()
                 
 
@@ -1068,7 +1091,11 @@ chunking_mode = st.session_state["chunking_mode"]
 
 
 
-# --- HEADER ---
+# --- HEADER & STATUS BANNERS ---
+if st.session_state.get("engine_error"):
+    st.error(f"⚠️ RAG Engine Offline: {st.session_state['engine_error']}")
+    st.info("You can still use the admin dashboard pages. To retry, switch models or visit Settings.")
+
 st.markdown("""
 <div class="main-header-row">
     <div class="engine-status">
@@ -1099,7 +1126,9 @@ for msg in st.session_state["messages"]:
         st.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{msg["content"]}</div>{sources_html}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
 
 # --- CHAT INPUT ---
-if prompt := st.chat_input("Ask about a ticket, error, or how-to..."):
+is_offline = bool(st.session_state.get("engine_error") or not st.session_state.get("models_loaded"))
+chat_placeholder = "Ask about a ticket, error, or how-to..." if not is_offline else "RAG Engine is currently offline..."
+if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
     st.session_state["messages"].append({"role": "user", "content": prompt})
     db.save_message(username, "user", prompt)
     
