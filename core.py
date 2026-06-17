@@ -106,10 +106,19 @@ def semantic_chunk_text(text, embedder, threshold=0.5, max_chunk_size=1200):
     Splits text into chunks based on semantic similarity between sentences.
     """
     import re
-    # Simple sentence splitter
-    sentences = re.split(r'(?<=[.!?]) +', text.replace('\n', ' '))
+    # Split on newlines, tab characters, and standard sentence boundaries
+    sentences = re.split(r'\n+|(?<=[.!?]) +', text)
     sentences = [s.strip() for s in sentences if s.strip()]
     if not sentences: return []
+    
+    # Ensure no individual sentence exceeds max_chunk_size
+    split_sentences = []
+    for s in sentences:
+        if len(s) > max_chunk_size:
+            split_sentences.extend(recursive_chunk_text(s, chunk_size=max_chunk_size, overlap=200))
+        else:
+            split_sentences.append(s)
+    sentences = split_sentences
     
     embeddings = embedder.encode(sentences, convert_to_numpy=True)
     
@@ -122,7 +131,7 @@ def semantic_chunk_text(text, embedder, threshold=0.5, max_chunk_size=1200):
         
         # Check if current chunk is getting too big or similarity is low
         current_text = " ".join(current_chunk)
-        if sim < threshold or len(current_text) > max_chunk_size:
+        if sim < threshold or (len(current_text) + len(sentences[i]) + 1) > max_chunk_size:
             chunks.append(current_text)
             current_chunk = [sentences[i]]
         else:
@@ -244,6 +253,7 @@ class RAGEngine:
         self.embedder = None
         self.cross_encoder = None
         self.is_gguf = False
+        self.n_ctx = 8192
         
         self.chunks = []
         self.parent_chunks = {} # Maps parent_id to text
@@ -281,17 +291,17 @@ class RAGEngine:
             
             if local_files:
                 print(f"[+] Found local model file: {local_files[0]}")
-                self.model = Llama(model_path=local_files[0], n_ctx=2048, n_threads=optimal_threads, verbose=False)
+                self.model = Llama(model_path=local_files[0], n_ctx=self.n_ctx, n_threads=optimal_threads, verbose=False)
             elif "/" in self.model_name and not os.path.exists(self.model_name):
                  self.model = Llama.from_pretrained(
                     repo_id=self.model_name,
                     filename="*q4_k_m.gguf", 
                     verbose=False,
-                    n_ctx=2048,
+                    n_ctx=self.n_ctx,
                     n_threads=optimal_threads
                 )
             else:
-                self.model = Llama(model_path=self.model_name, n_ctx=2048, verbose=False)
+                self.model = Llama(model_path=self.model_name, n_ctx=self.n_ctx, verbose=False)
             self.is_gguf = True
             self.tokenizer = None # Llama handles tokenization
         else:
@@ -519,6 +529,87 @@ class RAGEngine:
         return final_results, metrics
 
     def generate_stream(self, question, context, history, max_tokens=512, api_key=None):
+        def count_tokens(text):
+            if self.is_gguf and hasattr(self.model, "tokenize"):
+                try:
+                    return len(self.model.tokenize(text.encode('utf-8', errors='ignore')))
+                except Exception:
+                    pass
+            elif self.tokenizer:
+                try:
+                    return len(self.tokenizer.encode(text))
+                except Exception:
+                    pass
+            return len(text) // 4
+
+        # Perform context budgeting for local models to prevent context window overflow
+        if not self.model_name.startswith("gemini-"):
+            limit_n_ctx = self.n_ctx if self.is_gguf else 2048
+            if not self.is_gguf and self.model and hasattr(self.model, "config"):
+                limit_n_ctx = getattr(self.model.config, "max_position_embeddings", limit_n_ctx)
+            
+            # Estimate token usage of system prompt template without context
+            system_template = (
+                "IDENTITY AND CREATOR RULES:\n"
+                "- Your name is CognIQ.\n"
+                "- You are a local, secure closed-context corporate RAG assistant.\n"
+                "- You were created and built by Cognizant.\n"
+                "- You were specifically designed and developed for Fresenius Medical Care (FMC).\n"
+                "- If the user asks about who you are, your creator, your developer, your name, your purpose, or the company you work for, you must answer immediately and professionally using the above details, bypassing the strict document context rule for these identity questions.\n\n"
+                "GENERAL QA RULES:\n"
+                "- For all other general and technical questions, you must answer using ONLY the provided context below.\n"
+                "- If the context contains relevant information (even if it is an overview, summary, or partial description), use it to provide a helpful, comprehensive, and detailed answer. Describe whatever relevant details are present (such as key areas, contact names, tools, or overview steps).\n"
+                "- Respond in a professional, corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
+                "- You may relate the meanings of words in the question to the context to find the best matching information, but do not add any facts that are not explicitly present in the context.\n"
+                "<context>\n\n</context>\n"
+                "- Only if the provided context is completely unrelated or has zero connection to the user's question, reply exactly with: \"I think this info isn't yet added to my knowledge base.\" Do not add any explanations or extra words if you output this fallback phrase.\n"
+                "- Ensure that your answers are complete and do not cut off mid-sentence. If the answer is long, provide it in full and do not truncate it. Always use all relevant information from the context to provide the most comprehensive answer possible."
+            )
+            
+            skeleton_messages = [{"role": "system", "content": system_template}]
+            for entry in history[-2:]:
+                skeleton_messages.append({"role": "user", "content": entry["user"]})
+                skeleton_messages.append({"role": "assistant", "content": entry["bot"]})
+            skeleton_messages.append({"role": "user", "content": question})
+            
+            if self.is_gguf:
+                skeleton_text = ""
+                for m in skeleton_messages:
+                    skeleton_text += f"{m['role']}: {m['content']}\n"
+                skeleton_tokens = count_tokens(skeleton_text)
+            else:
+                if self.tokenizer:
+                    try:
+                        skeleton_text = self.tokenizer.apply_chat_template(skeleton_messages, tokenize=False, add_generation_prompt=True)
+                        skeleton_tokens = count_tokens(skeleton_text)
+                    except Exception:
+                        skeleton_tokens = count_tokens(str(skeleton_messages))
+                else:
+                    skeleton_tokens = count_tokens(str(skeleton_messages))
+            
+            safety_headroom = max_tokens + 128
+            max_context_tokens = max(512, limit_n_ctx - skeleton_tokens - safety_headroom)
+            
+            context_tokens = count_tokens(context)
+            if context_tokens > max_context_tokens:
+                print(f"[SYSTEM] Context size ({context_tokens} tokens) exceeds allowed budget ({max_context_tokens} tokens). Truncating context.")
+                truncated_context = ""
+                lines = context.split("\n")
+                current_tokens = 0
+                for line in lines:
+                    line_tokens = count_tokens(line + "\n")
+                    if current_tokens + line_tokens < max_context_tokens:
+                        truncated_context += line + "\n"
+                        current_tokens += line_tokens
+                    else:
+                        if not truncated_context:
+                            char_limit = int(max_context_tokens * 3.5)
+                            truncated_context = line[:char_limit] + "... [Truncated due to context limit]"
+                        else:
+                            truncated_context += "... [Truncated due to context limit]"
+                        break
+                context = truncated_context
+
         system_msg = (
             "IDENTITY AND CREATOR RULES:\n"
             "- Your name is CognIQ.\n"
