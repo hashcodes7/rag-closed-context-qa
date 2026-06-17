@@ -334,32 +334,233 @@ class RAGEngine:
         self.cross_encoder = CrossEncoder(self.cross_encoder_model_name)
         print("[+] Models loaded.")
 
-    def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False, chunking_mode="semantic"):
-        if not force_reindex and os.path.exists(cache_file) and os.path.exists(index_file):
-            print("[*] Loading cache...")
-            data = torch.load(cache_file, weights_only=False)
-            self.chunks = data.get("chunks", [])
-            self.parent_chunks = data.get("parent_chunks", {})
-            self.faiss_index = faiss.read_index(index_file)
-            # Backwards compatibility: ensure namespace exists on loaded chunks
+    def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False, chunking_mode="semantic", incremental=True):
+        import json
+        registry_file = "file_registry.json"
+        valid_extensions = (".txt", ".pdf", ".docx", ".html", ".htm", ".xlsx", ".xlsm")
+
+        # helper function to load registry
+        def load_registry():
+            if os.path.exists(registry_file):
+                try:
+                    with open(registry_file, "r") as f:
+                        return json.load(f)
+                except Exception:
+                    pass
+            return {}
+
+        # helper function to save registry
+        def save_registry(registry_dict):
+            try:
+                with open(registry_file, "w") as f:
+                    json.dump(registry_dict, f, indent=4)
+            except Exception as e:
+                print(f"[!] Error saving registry: {e}")
+
+        # Determine if we should perform an incremental update or a full reindex
+        do_incremental = incremental and not force_reindex and os.path.exists(cache_file) and os.path.exists(index_file)
+
+        if do_incremental:
+            print("[*] Running Incremental Update...")
+            try:
+                data = torch.load(cache_file, weights_only=False)
+                self.chunks = data.get("chunks", [])
+                self.parent_chunks = data.get("parent_chunks", {})
+                self.faiss_index = faiss.read_index(index_file)
+                
+                # Dynamic upgrade: if old cache does not have embeddings_np, generate it
+                embeddings_np = data.get("embeddings_np", None)
+                if embeddings_np is None and len(self.chunks) > 0:
+                    print("[*] Upgrading old cache file: generating embeddings for existing chunks...")
+                    chunk_texts = [item["text"] for item in self.chunks]
+                    embeddings_np = self.embedder.encode(chunk_texts, convert_to_numpy=True).astype("float32")
+                    faiss.normalize_L2(embeddings_np)
+                    torch.save({
+                        "chunks": self.chunks,
+                        "parent_chunks": self.parent_chunks,
+                        "embeddings_np": embeddings_np
+                    }, cache_file)
+            except Exception as e:
+                print(f"[!] Failed to load existing index/cache ({e}). Falling back to complete re-index.")
+                do_incremental = False
+
+        if do_incremental:
+            # 1. Load registry or bootstrap it
+            registry = load_registry()
+            
+            # Bootstrapping fault tolerance: if registry is empty but cache has data, build registry from cache
+            if not registry and len(self.chunks) > 0:
+                print("[*] Bootstrapping registry from existing vector cache...")
+                # Map relative paths of currently cached files to current mtime on disk (if they exist)
+                for c in self.chunks:
+                    source_path = c["source"]
+                    full_path = os.path.join(folder, source_path)
+                    if os.path.exists(full_path) and source_path not in registry:
+                        registry[source_path] = os.path.getmtime(full_path)
+                save_registry(registry)
+
+            # 2. Check disk for changed/new/deleted files
+            current_files = {}
+            for root, dirs, files in os.walk(folder):
+                for filename in files:
+                    if filename.lower().endswith(valid_extensions):
+                        full_path = os.path.join(root, filename)
+                        relpath = os.path.relpath(full_path, folder).replace('\\', '/')
+                        current_files[relpath] = os.path.getmtime(full_path)
+
+            new_or_modified = []
+            deleted_files = []
+
+            # Find new or modified files
+            for relpath, mtime in current_files.items():
+                if relpath not in registry or mtime > registry.get(relpath, 0):
+                    new_or_modified.append(relpath)
+
+            # Find deleted files (in registry but no longer on disk)
+            for relpath in list(registry.keys()):
+                if relpath not in current_files:
+                    deleted_files.append(relpath)
+
+            if not new_or_modified and not deleted_files:
+                print("[+] Knowledge base is up to date. No files changed.")
+                tokenized_corpus = [tokenize(c["text"]) for c in self.chunks]
+                self.bm25_index = SimpleBM25(tokenized_corpus)
+                return
+
+            print(f"[*] Incremental status: {len(new_or_modified)} new/modified, {len(deleted_files)} deleted.")
+
+            # 3. Handle deletions/modifications in chunks, parent_chunks, and embeddings
+            # We keep only chunks that are NOT from deleted or modified files
+            keep_mask = []
+            filtered_chunks = []
+            for idx, c in enumerate(self.chunks):
+                if c["source"] not in deleted_files and c["source"] not in new_or_modified:
+                    keep_mask.append(idx)
+                    filtered_chunks.append(c)
+
+            # Filter parent chunks
+            keep_parent_ids = {c["parent_id"] for c in filtered_chunks}
+            self.parent_chunks = {k: v for k, v in self.parent_chunks.items() if k in keep_parent_ids}
+
+            # Filter embeddings array
+            if embeddings_np is not None and len(keep_mask) > 0:
+                remaining_embeddings = embeddings_np[keep_mask]
+            else:
+                remaining_embeddings = np.empty((0, self.embedder.get_sentence_embedding_dimension()), dtype="float32")
+
+            self.chunks = filtered_chunks
+
+            # Remove deleted files from registry
+            for df in deleted_files:
+                if df in registry:
+                    del registry[df]
+
+            # 4. Process new/modified files
+            new_chunks_added = []
+            # Find the highest counter for parent_id to avoid collisions
+            parent_id_counter = 0
+            for p_id in self.parent_chunks.keys():
+                try:
+                    num = int(p_id.split('_')[1])
+                    if num >= parent_id_counter:
+                        parent_id_counter = num + 1
+                except Exception:
+                    pass
+
+            for relpath in new_or_modified:
+                full_path = os.path.join(folder, relpath)
+                if not os.path.exists(full_path):
+                    continue
+
+                text = extract_text_from_file(full_path)
+                if not text.strip():
+                    print(f"[!] Skipping {relpath}: no text extracted")
+                    continue
+
+                print(f"[+] Processing {relpath}...")
+                parts = relpath.split('/')
+                namespace = parts[0] if len(parts) > 1 else (parts[0] if parts else 'root')
+
+                if chunking_mode == "semantic":
+                    parents = semantic_chunk_text(text, self.embedder)
+                else:
+                    parents = recursive_chunk_text(text, chunk_size=1500)
+
+                for p_text in parents:
+                    p_id = f"p_{parent_id_counter}"
+                    self.parent_chunks[p_id] = p_text
+                    parent_id_counter += 1
+
+                    children = recursive_chunk_text(p_text, chunk_size=400, overlap=50)
+                    for i, c_text in enumerate(children):
+                        new_chunks_added.append({
+                            "source": relpath,
+                            "chunk_id": i,
+                            "text": c_text,
+                            "parent_id": p_id,
+                            "namespace": namespace
+                        })
+
+                # Update registry mtime
+                registry[relpath] = current_files[relpath]
+
+            # 5. Embed new chunks and merge with remaining ones
+            if new_chunks_added:
+                new_texts = [item["text"] for item in new_chunks_added]
+                new_embeds = self.embedder.encode(new_texts, convert_to_numpy=True).astype("float32")
+                faiss.normalize_L2(new_embeds)
+                
+                if remaining_embeddings.shape[0] > 0:
+                    embeddings_np = np.concatenate([remaining_embeddings, new_embeds], axis=0)
+                else:
+                    embeddings_np = new_embeds
+
+                self.chunks.extend(new_chunks_added)
+            else:
+                embeddings_np = remaining_embeddings
+
+            # Ensure namespace exists on all chunks
             for c in self.chunks:
                 if "namespace" not in c:
                     c["namespace"] = "root"
-        else:
-            print(f"[*] Processing files using {chunking_mode} chunking...")
-            if force_reindex:
+
+            # 6. Rebuild and save FAISS and cache
+            if embeddings_np.shape[0] > 0:
+                dim = embeddings_np.shape[1]
+                self.faiss_index = faiss.IndexHNSWFlat(dim, 32, faiss.METRIC_INNER_PRODUCT)
+                self.faiss_index.hnsw.efConstruction = 200
+                self.faiss_index.add(embeddings_np)
+                faiss.write_index(self.faiss_index, index_file)
+                torch.save({
+                    "chunks": self.chunks, 
+                    "parent_chunks": self.parent_chunks,
+                    "embeddings_np": embeddings_np
+                }, cache_file)
+                save_registry(registry)
+                print(f"[+] Knowledge base updated. Total chunks: {len(self.chunks)}.")
+            else:
+                print("[!] Knowledge base is empty. Clearing index files.")
+                self.faiss_index = None
                 if os.path.exists(cache_file): os.remove(cache_file)
                 if os.path.exists(index_file): os.remove(index_file)
+                if os.path.exists(registry_file): os.remove(registry_file)
+
+        else:
+            # Complete Reindex Flow
+            print(f"[*] Processing files using {chunking_mode} chunking (Complete Re-Index)...")
+            
+            # Wipe files
+            if os.path.exists(cache_file): os.remove(cache_file)
+            if os.path.exists(index_file): os.remove(index_file)
+            if os.path.exists(registry_file): os.remove(registry_file)
             
             self.chunks = []
             self.parent_chunks = {}
             if not os.path.exists(folder): os.makedirs(folder)
             
-            # Accept common document formats including HTML/HTM
-            valid_extensions = (".txt", ".pdf", ".docx", ".html", ".htm", ".xlsx", ".xlsm")
             parent_id_counter = 0
+            registry = {}
 
-            # Walk the knowledge folder recursively so nested namespaces/folders are supported
             for root, dirs, files in os.walk(folder):
                 for filename in files:
                     if not filename.lower().endswith(valid_extensions):
@@ -367,7 +568,6 @@ class RAGEngine:
                         continue
 
                     path = os.path.join(root, filename)
-                    # compute relative path and namespace (top-level folder under `folder`)
                     relpath = os.path.relpath(path, folder).replace('\\', '/')
                     parts = relpath.split('/')
                     namespace = parts[0] if len(parts) > 1 else (parts[0] if parts else 'root')
@@ -378,8 +578,7 @@ class RAGEngine:
                         continue
 
                     print(f"[+] Processing {relpath} (namespace={namespace})...")
-
-                    # 1. Create Semantic Parents
+                    
                     if chunking_mode == "semantic":
                         parents = semantic_chunk_text(text, self.embedder)
                     else:
@@ -390,7 +589,6 @@ class RAGEngine:
                         self.parent_chunks[p_id] = p_text
                         parent_id_counter += 1
 
-                        # 2. Create Overlapping Children for dense retrieval
                         children = recursive_chunk_text(p_text, chunk_size=400, overlap=50)
                         for i, c_text in enumerate(children):
                             self.chunks.append({
@@ -401,14 +599,13 @@ class RAGEngine:
                                 "namespace": namespace
                             })
 
-            
+                    registry[relpath] = os.path.getmtime(path)
+
             chunk_texts = [item["text"] for item in self.chunks]
 
-            # If no chunks were produced (e.g., unsupported files only), bail out gracefully
             if len(chunk_texts) == 0:
                 print("[!] No text chunks were extracted from knowledge sources. Skipping index creation.")
                 self.faiss_index = None
-                # Create an empty BM25 index to avoid None checks elsewhere
                 self.bm25_index = SimpleBM25([])
                 return
 
@@ -418,9 +615,15 @@ class RAGEngine:
             self.faiss_index = faiss.IndexHNSWFlat(dim, 32, faiss.METRIC_INNER_PRODUCT)
             self.faiss_index.hnsw.efConstruction = 200
             self.faiss_index.add(embeddings_np)
-            torch.save({"chunks": self.chunks, "parent_chunks": self.parent_chunks}, cache_file)
+            
+            torch.save({
+                "chunks": self.chunks, 
+                "parent_chunks": self.parent_chunks,
+                "embeddings_np": embeddings_np
+            }, cache_file)
             faiss.write_index(self.faiss_index, index_file)
-            print("[+] Knowledge base indexed.")
+            save_registry(registry)
+            print("[+] Knowledge base completely indexed.")
 
         tokenized_corpus = [tokenize(c["text"]) for c in self.chunks]
         self.bm25_index = SimpleBM25(tokenized_corpus)
