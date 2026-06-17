@@ -81,7 +81,7 @@ html, body, [class*="css"], .stApp {
 }
 
 .block-container {
-    padding-bottom: 4.5rem !important;
+    padding-bottom: 6.5rem !important;
 }
 
 section[data-testid="stSidebar"] {
@@ -225,10 +225,24 @@ div[data-testid="stChatMessage"] {
 }
 
 
-/* Hide default streamlit UI headers and menus */
-#MainMenu {display: none;}
-header {visibility: hidden;}
-footer {visibility: hidden;}
+/* Hide default streamlit UI headers and menus completely to reclaim space */
+#MainMenu {display: none !important;}
+header {display: none !important;}
+footer {display: none !important;}
+
+/* Adjust bottom container positioning and layout */
+div[data-testid="stBottom"] {
+    padding-bottom: 8px !important;
+    background-color: #ffffff !important;
+}
+div[data-testid="stBottom"] > div {
+    gap: 6px !important;
+    padding-bottom: 0px !important;
+}
+div[data-testid="stChatInput"] {
+    margin-bottom: 0px !important;
+    padding-bottom: 0px !important;
+}
 
 /* Custom styles for sidebar elements */
 .sidebar-branding {
@@ -378,13 +392,15 @@ div[data-testid="stSidebarUserContent"] {
     gap: 6px;
 }
 
-/* Input Tagline */
+/* Input Tagline spacing */
 .input-tagline {
     text-align: center;
     font-size: 12px;
     color: #9ca3af;
-    margin-top: 4px;
-    margin-bottom: 12px;
+    margin-top: 0px !important;
+    margin-bottom: 0px !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1129,7 +1145,12 @@ for msg in st.session_state["messages"]:
 # --- CHAT INPUT ---
 is_offline = bool(st.session_state.get("engine_error") or not st.session_state.get("models_loaded"))
 chat_placeholder = "Ask about a ticket, error, or how-to..." if not is_offline else "RAG Engine is currently offline..."
-if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
+
+with st.bottom():
+    st.markdown("<div class='input-tagline'>Grounded in your tickets & KB · every answer cites its source</div>", unsafe_allow_html=True)
+    prompt = st.chat_input(chat_placeholder, disabled=is_offline)
+
+if prompt:
     st.session_state["messages"].append({"role": "user", "content": prompt})
     db.save_message(username, "user", prompt)
     
@@ -1236,5 +1257,4 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
     })
     db.save_message(username, "assistant", response, sources_meta, metrics)
 
-# Centered Tagline footer under input
-st.markdown("<div class='input-tagline'>Grounded in your tickets & KB · every answer cites its source</div>", unsafe_allow_html=True)
+# Centered Tagline footer under input (now rendered inside st.bottom)
