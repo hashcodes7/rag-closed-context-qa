@@ -81,7 +81,7 @@ html, body, [class*="css"], .stApp {
 }
 
 .block-container {
-    padding-bottom: 6.5rem !important;
+    padding-bottom: 3.5rem !important;
 }
 
 section[data-testid="stSidebar"] {
@@ -232,11 +232,20 @@ footer {display: none !important;}
 
 /* Adjust chat input container positioning and layout */
 div[data-testid="stChatInput"] {
-    bottom: 10px !important;
+    bottom: 4px !important;
+    padding-bottom: 0px !important;
+    padding-top: 0px !important;
+    margin: 0px !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
     background-color: transparent !important;
+}
+
+/* Ensure inner form elements have no bottom margins */
+div[data-testid="stChatInput"] form {
+    margin: 0px !important;
+    padding: 0px !important;
 }
 
 /* Add tagline above the chat input box */
@@ -246,7 +255,7 @@ div[data-testid="stChatInput"]::before {
     text-align: center;
     font-size: 12px;
     color: #9ca3af;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     width: 100%;
 }
 
