@@ -220,24 +220,6 @@ div[data-testid="stChatMessage"] {
     color: #2563eb;
 }
 
-div[data-testid="stChatInput"] {
-    background-color: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-}
-div[data-testid="stChatInput"] > div {
-    border-radius: 24px !important;
-    border: 1px solid #e2e8f0 !important;
-    background-color: #ffffff !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
-    padding-left: 10px !important;
-}
-div[data-testid="stChatInput"] textarea {
-    background-color: transparent !important;
-    font-family: 'Inter', sans-serif !important;
-    font-size: 15px !important;
-}
 
 /* Hide default streamlit UI headers and menus */
 #MainMenu {display: none;}
