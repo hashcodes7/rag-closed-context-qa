@@ -675,8 +675,6 @@ with st.sidebar:
 
     # Fixed User Profile Card at Sidebar Bottom
     display_username = st.session_state.get('username', '')
-    if display_username.lower() in ["harsh", "harsh_verma", "harsh.verma"]:
-        display_username = "Cognizant Admin"
     first_letter = display_username[0].upper() if display_username else 'C'
     st.markdown(f'<div class="profile-container"><div class="profile-avatar">{first_letter}</div><div class="profile-info"><div class="profile-name">{display_username}</div><div class="profile-role">{st.session_state.get("user_role", "").title()}</div></div><div class="profile-chevron">👤</div></div>', unsafe_allow_html=True)
 
