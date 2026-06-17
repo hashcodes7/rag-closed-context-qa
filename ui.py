@@ -80,6 +80,10 @@ html, body, [class*="css"], .stApp {
     background-color: #ffffff !important;
 }
 
+.block-container {
+    padding-bottom: 4.5rem !important;
+}
+
 section[data-testid="stSidebar"] {
     background-color: #f4f3ef !important;
     border-right: 1px solid #e2e8f0 !important;
