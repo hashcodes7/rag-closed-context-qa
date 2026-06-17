@@ -729,7 +729,7 @@ if "models_loaded" not in st.session_state:
         engine.load_models(quantization_mode=quant_mode)
         st.write(f"📂 Indexing Knowledge Base ({chunking_mode})...")
         print(f"[SYSTEM] Indexing knowledge base with {chunking_mode} chunking...", flush=True)
-        engine.process_knowledge_base(chunking_mode=chunking_mode)
+        engine.process_knowledge_base(chunking_mode=chunking_mode, incremental=True, force_reindex=False)
         status.update(label="✅ Engine Ready!", state="complete", expanded=False)
         print("[SYSTEM] Engine ready.", flush=True)
     st.session_state["models_loaded"] = True
@@ -793,12 +793,25 @@ if st.session_state.get("current_page") == "manage_kb":
         if st.session_state.get("reindex_required"):
             st.warning("⚠️ Files changed. Re-index recommended to rebuild HNSW Vector Index and BM25 index.")
             
-        if st.button("🏗️ Force Re-Index Knowledge Base", use_container_width=True, type="primary"):
-            with st.status("🏗️ Processing and Indexing Knowledge Base...", expanded=True) as status:
-                engine.process_knowledge_base(force_reindex=True, chunking_mode=chunking_mode)
-                st.session_state["reindex_required"] = False
-                status.update(label="✅ Re-indexed Successfully!", state="complete", expanded=False)
-                st.rerun()
+        # Re-index options layout
+        col_idx1, col_idx2 = st.columns(2)
+        with col_idx1:
+            if st.button("⚡ Incremental Update", use_container_width=True, type="secondary"):
+                with st.status("⚡ Updating Knowledge Base (Incremental)...", expanded=True) as status:
+                    engine.process_knowledge_base(force_reindex=False, incremental=True, chunking_mode=chunking_mode)
+                    st.session_state["reindex_required"] = False
+                    status.update(label="✅ Index Updated!", state="complete", expanded=False)
+                    st.rerun()
+            st.caption("reindex only new files")
+            
+        with col_idx2:
+            if st.button("🏗️ Complete Re-Index", use_container_width=True, type="primary"):
+                with st.status("🏗️ Rebuilding Knowledge Base (Full)...", expanded=True) as status:
+                    engine.process_knowledge_base(force_reindex=True, incremental=False, chunking_mode=chunking_mode)
+                    st.session_state["reindex_required"] = False
+                    status.update(label="✅ Complete Re-Index Finished!", state="complete", expanded=False)
+                    st.rerun()
+            st.caption("reindex every single file (this will take much more time)")
                 
     with col_right:
         st.subheader("🔍 Knowledge Base Directory")
