@@ -592,6 +592,8 @@ if not st.session_state["logged_in"]:
                 
     st.stop()  # Stop execution of the rest of the application until logged in!
 
+username = st.session_state["username"]
+
 # --- CACHED ENGINE INITIALIZATION ---
 @st.cache_resource
 def get_engine(model_name):
@@ -693,8 +695,6 @@ if "models_loaded" not in st.session_state:
 if "engine_error" not in st.session_state:
     st.session_state["engine_error"] = None
 
-username = st.session_state["username"]
-
 # Only initialize engine if on chat page and not already loaded/errored
 if not st.session_state["models_loaded"] and st.session_state.get("current_page") == "chat" and not st.session_state.get("engine_error"):
     repo_id = st.session_state["current_model"]
@@ -748,9 +748,6 @@ if not st.session_state["models_loaded"] and st.session_state.get("current_page"
         err_trace = traceback.format_exc()
         print(f"[SYSTEM] Engine load failed:\n{err_trace}", flush=True)
         st.session_state["engine_error"] = f"{str(e)}"
-
-username = st.session_state["username"]
-
 
 # --- DEDICATED KNOWLEDGE BASE MANAGER ROUTING ---
 if st.session_state.get("current_page") == "manage_kb":
