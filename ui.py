@@ -7,6 +7,19 @@ import database as db
 # Initialize database
 db.init_db()
 
+# Fallback phrase the model is instructed to emit when the context is unrelated.
+# Sometimes the model emits this phrase AND then continues with an answer anyway.
+# In that case we strip the fallback line so only the real answer is shown.
+FALLBACK_PHRASE = "I think this info isn't yet added to my knowledge base."
+
+def strip_fallback_prefix(text):
+    stripped = text.lstrip()
+    if stripped.startswith(FALLBACK_PHRASE):
+        remainder = stripped[len(FALLBACK_PHRASE):].lstrip(" .\n\r\t")
+        if remainder:
+            return remainder
+    return text
+
 # =====================================================
 def download_model_ui(repo_id, pattern="q4_k_m.gguf"):
     import huggingface_hub
@@ -1217,11 +1230,15 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
             start_time = time.time()
             for new_text in streamer:
                 full_response += new_text
-                response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{full_response}▌</div></div></div>', unsafe_allow_html=True)
-            
+                display_response = strip_fallback_prefix(full_response)
+                response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{display_response}▌</div></div></div>', unsafe_allow_html=True)
+
             gen_time = time.time() - start_time
             print(f"[SYSTEM] Generation finished in {gen_time:.2f}s", flush=True)
-            
+
+            # Strip the fallback phrase if the model emitted it AND then answered anyway
+            full_response = strip_fallback_prefix(full_response)
+
             # Final output with citations
             response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{full_response}</div>{format_sources_html(sources_meta)}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
             response = full_response
