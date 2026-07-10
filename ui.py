@@ -535,7 +535,7 @@ if not st.session_state["logged_in"]:
         st.markdown("<br><br>", unsafe_allow_html=True)
         
         if st.session_state["auth_page"] == "login":
-            st.image("media/cognizant_logo.png", use_container_width=True)
+            st.image("media/combined_logo.png", use_container_width=True)
             st.markdown("<h2 style='text-align: center; margin-top: 10px;'>CognIQ</h2>", unsafe_allow_html=True)
             st.markdown("<h4 style='text-align: center; color: #a0aec0; font-weight: 500; margin-top: -5px;'>Ask once. Resolve faster.</h4>", unsafe_allow_html=True)
             st.caption("AMS support intelligence — answers from past ticket resolutions & knowledge base articles")
@@ -577,7 +577,7 @@ if not st.session_state["logged_in"]:
                 st.rerun()
                 
         elif st.session_state["auth_page"] == "signup":
-            st.image("media/cognizant_logo.png", use_container_width=True)
+            st.image("media/combined_logo.png", use_container_width=True)
             st.markdown("<h2 style='text-align: center; margin-top: 10px;'>CognIQ Sign Up</h2>", unsafe_allow_html=True)
             st.caption("Register below to access your isolated QA history.")
             
@@ -606,7 +606,7 @@ if not st.session_state["logged_in"]:
                 st.rerun()
                 
         elif st.session_state["auth_page"] == "signup_success":
-            st.image("media/cognizant_logo.png", use_container_width=True)
+            st.image("media/combined_logo.png", use_container_width=True)
             st.success("🎉 Signup Successful!")
             st.markdown("""
             Your corporate RAG account has been registered successfully.
@@ -632,7 +632,7 @@ engine = get_engine(st.session_state["current_model"])
 
 # --- SIDEBAR SETTINGS ---
 with st.sidebar:
-    st.image("media/cognizant_logo.png", use_container_width=True)
+    st.image("media/combined_logo.png", use_container_width=True)
     st.markdown("""
     <div class="sidebar-branding">
         <div class="sidebar-title">CognIQ</div>
@@ -781,7 +781,7 @@ if st.session_state.get("current_page") == "manage_kb":
         st.session_state["current_page"] = "chat"
         st.rerun()
         
-    st.image("media/cognizant_logo.png", width=200)
+    st.image("media/combined_logo.png", width=340)
     st.title("📂 Document & Knowledge Base Manager")
     st.caption("View, search, upload, and delete documents supporting the CognIQ RAG engine.")
     
@@ -911,7 +911,7 @@ if st.session_state.get("current_page") == "manage_users":
         st.session_state["current_page"] = "chat"
         st.rerun()
         
-    st.image("media/cognizant_logo.png", width=200)
+    st.image("media/combined_logo.png", width=340)
     st.title("👥 User Administration Dashboard")
     st.caption("Admin Mode — View user accounts, change roles, edit details, and delete profiles with history.")
     
@@ -1005,7 +1005,7 @@ if st.session_state.get("current_page") == "settings":
         st.session_state["current_page"] = "chat"
         st.rerun()
         
-    st.image("media/cognizant_logo.png", width=200)
+    st.image("media/combined_logo.png", width=340)
     st.title("⚙️ RAG Engine Configurations")
     st.caption("Configure local models, retrieval algorithms, quantization modes, and system restarts.")
     
@@ -1148,7 +1148,7 @@ if not st.session_state["messages"]:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
     with col_logo2:
-        st.image("media/cognizant_logo.png", use_container_width=True)
+        st.image("media/combined_logo.png", use_container_width=True)
         st.markdown("<h1 style='text-align: center; margin-top: 10px; color: #111827;'>🧠 CognIQ</h1>", unsafe_allow_html=True)
         st.markdown("<h4 style='text-align: center; color: #6b7280; font-weight: 500; margin-top: -5px;'>Ask once. Resolve faster.</h4>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #9ca3af; font-size: 14px;'>AMS support intelligence — answers from past ticket resolutions & knowledge base articles</p>", unsafe_allow_html=True)

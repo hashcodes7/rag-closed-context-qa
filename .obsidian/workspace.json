@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "roadmap_document/architecture diagrams and explanation/Query and Generation Pipeline.md",
+                "file": "roadmap_document/architecture diagrams and explanation/redhat_ec2_deployment_guide.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Query and Generation Pipeline"
+              "title": "redhat_ec2_deployment_guide"
             }
           }
         ]
@@ -185,6 +185,7 @@
   },
   "active": "0fca785a6c4c14f6",
   "lastOpenFiles": [
+    "roadmap_document/architecture diagrams and explanation/Query and Generation Pipeline.md",
     "Executive_Demo_Guide.md"
   ]
 }
