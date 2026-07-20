@@ -21,6 +21,62 @@ def strip_fallback_prefix(text):
     return text
 
 # =====================================================
+# 🎯 APPLICATION SCOPING (Part 1: application-specific RAG)
+# -----------------------------------------------------
+# The user picks which application their questions are about. The selection
+# prepends an application prompt to the system prompt so that ambiguous
+# questions (e.g. "how is a user created") are answered strictly in the
+# context of the chosen application instead of leaking another app's details.
+# =====================================================
+DEFAULT_APP = "All Applications"
+
+APP_DESCRIPTIONS = {
+    "Trackwise": "TrackWise is a Quality Management System (QMS) used to manage quality processes such as CAPA, deviations, complaints, audits, change control, and quality records.",
+    "ThingWorx": "ThingWorx is PTC's Industrial IoT (IIoT) platform used to build and run connected applications, model Things/data, and create dashboards (mashups).",
+    "Polarion": "Polarion is Siemens' Application Lifecycle Management (ALM) tool used for requirements management, test management, and work-item tracking.",
+    "Windchill GPDM": "Windchill GPDM (Global Product Data Management) is PTC's PLM system used to manage product data, parts, documents, BOMs, and change management.",
+}
+
+# Order shown in the dropdown; DEFAULT_APP first so behaviour is unchanged until a choice is made.
+APP_OPTIONS = [DEFAULT_APP] + list(APP_DESCRIPTIONS.keys())
+
+# Maps each app to the knowledge_source top-level folder(s) that become the chunk
+# "namespace" during indexing. Used to filter retrieval so only that app's documents
+# are searched. Note: the Windchill folder on disk is "Windchill GPDM & Windchill NA".
+APP_NAMESPACES = {
+    "Trackwise": ["Trackwise"],
+    "ThingWorx": ["ThingWorx"],
+    "Polarion": ["Polarion"],
+    "Windchill GPDM": ["Windchill GPDM & Windchill NA"],
+}
+
+
+def get_allowed_namespaces(app):
+    """Return the list of allowed chunk namespaces for an app, or None for the default (no filter)."""
+    if not app or app == DEFAULT_APP:
+        return None
+    return APP_NAMESPACES.get(app)
+
+
+def build_app_prompt(app):
+    """Return the application-scoping system-prompt block, or None for the default."""
+    if not app or app == DEFAULT_APP:
+        return None
+    description = APP_DESCRIPTIONS.get(app, "")
+    return (
+        "APPLICATION CONTEXT (HIGHEST PRIORITY SCOPE):\n"
+        f"- The user is asking specifically about the \"{app}\" application. {description}\n"
+        f"- Treat every question as being about {app}, even when the question does not name any application.\n"
+        f"- Many support questions are ambiguous and could apply to several systems (for example: "
+        f"'how is a user created', 'how to reset a password', 'how to configure roles', 'how to import data'). "
+        f"Always interpret and answer such questions strictly in the context of {app}.\n"
+        f"- When using the retrieved context below, prefer information that pertains to {app}. "
+        f"If a retrieved passage clearly belongs to a different application, do not present it as if it applies to {app}.\n"
+        f"- If the context only contains information about a different application and nothing about {app}, "
+        f"use the standard fallback phrase instead of answering with the wrong application's details."
+    )
+
+# =====================================================
 def download_model_ui(repo_id, pattern="q4_k_m.gguf"):
     import huggingface_hub
     import requests
@@ -432,12 +488,14 @@ def format_sources_html(sources):
     import os
     chips = []
     for idx, s in enumerate(sources):
+        meta = {}
         if isinstance(s, dict):
             src_name = s.get("source", "")
             match_score = s.get("score")
             if match_score is None:
                 match_score = 0.95 - (idx * 0.05)
             match_pct = int(match_score * 100) if match_score <= 1.0 else int(match_score)
+            meta = s.get("metadata", {}) or {}
         else:
             src_name = str(s)
             match_pct = 90 - (idx * 5)
@@ -450,7 +508,36 @@ def format_sources_html(sources):
         if len(basename) > 50:
             basename = basename[:47] + "..."
             
-        chip_html = f'<div class="source-chip"><span class="badge {badge_class}">{badge_text}</span><span class="source-text" title="{src_name}">{basename}</span><span class="match-pct">{match_pct}% match</span></div>'
+        tooltip_parts = [f"Source: {src_name}"]
+        meta_info = ""
+        if meta:
+            if meta.get("title"):
+                tooltip_parts.append(f"Title: {meta['title']}")
+            if meta.get("author"):
+                tooltip_parts.append(f"Author: {meta['author']}")
+            if meta.get("creator"):
+                tooltip_parts.append(f"Creator/Editor: {meta['creator']}")
+            if meta.get("created_time"):
+                tooltip_parts.append(f"Created: {meta['created_time']}")
+            if meta.get("modified_time"):
+                tooltip_parts.append(f"Modified: {meta['modified_time']}")
+            if meta.get("file_size_bytes"):
+                tooltip_parts.append(f"Size: {meta['file_size_bytes']/1024:.1f} KB")
+                
+            author_info = meta.get("author") or meta.get("creator") or ""
+            date_info = meta.get("modified_time") or meta.get("created_time") or ""
+            if date_info:
+                date_info = date_info.split()[0]
+                
+            if author_info and date_info:
+                meta_info = f" ({author_info} · {date_info})"
+            elif author_info:
+                meta_info = f" ({author_info})"
+            elif date_info:
+                meta_info = f" ({date_info})"
+                
+        tooltip = " | ".join(tooltip_parts)
+        chip_html = f'<div class="source-chip"><span class="badge {badge_class}">{badge_text}</span><span class="source-text" title="{tooltip}">{basename}{meta_info}</span><span class="match-pct">{match_pct}% match</span></div>'
         chips.append(chip_html)
         
     if not chips:
@@ -480,6 +567,9 @@ if "auth_page" not in st.session_state:
 
 if "current_page" not in st.session_state:
     st.session_state["current_page"] = "chat"
+
+if "selected_app" not in st.session_state:
+    st.session_state["selected_app"] = DEFAULT_APP
 
 if "theme_mode" not in st.session_state:
     st.session_state["theme_mode"] = "dark"
@@ -815,15 +905,30 @@ if st.session_state.get("current_page") == "manage_kb":
     
     with col_left:
         st.subheader("📥 Ingest New Documents")
-        uploaded_files = st.file_uploader("Upload Corporate Knowledge Files", type=["txt", "pdf", "docx", "html", "xlsx", "xlsm"], accept_multiple_files=True)
+        
+        # Select target application
+        upload_app = st.selectbox("Select Target Application Namespace", ["Windchill GPDM", "Polarion", "ThingWorx", "Trackwise"])
+        target_subfolder = ""
+        if upload_app == "Windchill GPDM":
+            target_subfolder = "Windchill GPDM & Windchill NA"
+        elif upload_app == "Polarion":
+            target_subfolder = "Polarion"
+        elif upload_app == "ThingWorx":
+            target_subfolder = "ThingWorx"
+        elif upload_app == "Trackwise":
+            target_subfolder = "Trackwise"
+            
+        target_dir = os.path.join(kb_folder, target_subfolder)
+        
+        uploaded_files = st.file_uploader(f"Upload Corporate Knowledge Files to {upload_app}", type=["txt", "pdf", "docx", "html", "xlsx", "xlsm"], accept_multiple_files=True)
         if uploaded_files:
+            os.makedirs(target_dir, exist_ok=True)
             for uploaded_file in uploaded_files:
-                save_path = os.path.join(kb_folder, uploaded_file.name)
-                os.makedirs(kb_folder, exist_ok=True)
+                save_path = os.path.join(target_dir, uploaded_file.name)
                 if not os.path.exists(save_path):
                     with open(save_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
-                    st.success(f"Successfully uploaded: {uploaded_file.name}")
+                    st.success(f"Successfully uploaded: {uploaded_file.name} to {upload_app}")
                     st.session_state["reindex_required"] = True
                     st.rerun()
                     
@@ -1161,6 +1266,57 @@ for msg in st.session_state["messages"]:
         sources_html = format_sources_html(msg.get("sources", []))
         st.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{msg["content"]}</div>{sources_html}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
 
+# --- APPLICATION SCOPE SELECTOR (styled as a compact pill, attached above the chat input) ---
+st.markdown("""
+<style>
+/* Pull the pill down so it hugs the top edge of the fixed chat-input bar */
+.st-key-selected_app {
+    margin-bottom: -4px !important;
+    padding-left: 2px !important;
+}
+/* Hide the default stacked label — the leading icon in the value carries the meaning */
+.st-key-selected_app label { display: none !important; }
+/* Turn the BaseWeb select control into a rounded, subtle pill (model-picker look) */
+.st-key-selected_app div[data-baseweb="select"] > div {
+    border-radius: 9999px !important;
+    background-color: #f7f7f5 !important;
+    border: 1px solid #e2e8f0 !important;
+    min-height: 34px !important;
+    padding-left: 12px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+    transition: all 0.15s ease !important;
+}
+.st-key-selected_app div[data-baseweb="select"] > div:hover {
+    border-color: #cbd5e1 !important;
+    background-color: #f1f0ec !important;
+}
+.st-key-selected_app div[data-baseweb="select"] div,
+.st-key-selected_app div[data-baseweb="select"] span {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Leading target emoji on each label so the pill reads as an app picker without a text label.
+app_col, _spacer = st.columns([1.2, 3])
+with app_col:
+    st.selectbox(
+        "Application scope",
+        APP_OPTIONS,
+        key="selected_app",
+        format_func=lambda a: f"🎯 {a}",
+        label_visibility="collapsed",
+        help="Scope every answer to a specific application. This prepends an application "
+             "prompt and restricts document retrieval so ambiguous questions "
+             "(e.g. 'how is a user created') are answered for the selected app only.",
+    )
+
+# Resolve the application-scoping prompt and retrieval namespace filter for the current selection.
+app_prompt = build_app_prompt(st.session_state["selected_app"])
+allowed_namespaces = get_allowed_namespaces(st.session_state["selected_app"])
+
 # --- CHAT INPUT ---
 is_offline = bool(st.session_state.get("engine_error") or not st.session_state.get("models_loaded"))
 chat_placeholder = "Ask about a ticket, error, or how-to..." if not is_offline else "RAG Engine is currently offline..."
@@ -1178,18 +1334,25 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
         # 1. Retrieval
         print(f"\n[SYSTEM] Received User Query: {prompt}", flush=True)
         st.write(f"Searching index {'(Hybrid+' if use_hybrid else '('}{'HyDE+' if use_hyde else ''}{'Rerank)' if use_rerank else ')'}...")
+        if allowed_namespaces:
+            st.write(f"🎯 Scoped to **{st.session_state['selected_app']}** documents only.")
+            print(f"[SYSTEM] Retrieval scoped to namespaces: {allowed_namespaces}", flush=True)
         print(f"[SYSTEM] Executing Retrieval Pipeline (Hybrid={use_hybrid}, HyDE={use_hyde}, Rerank={use_rerank})", flush=True)
         top_chunks, metrics = engine.retrieve(
-            prompt, 
-            k=3, 
-            use_hybrid=use_hybrid, 
-            use_hyde=use_hyde, 
-            use_rerank=use_rerank, 
-            use_parent=use_parent
+            prompt,
+            k=3,
+            use_hybrid=use_hybrid,
+            use_hyde=use_hyde,
+            use_rerank=use_rerank,
+            use_parent=use_parent,
+            allowed_namespaces=allowed_namespaces
         )
         
         if not top_chunks:
-            response = "Not found."
+            if allowed_namespaces:
+                response = f"I think this info isn't yet added to my knowledge base for {st.session_state['selected_app']}."
+            else:
+                response = "Not found."
             sources_meta = []
             response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{response}</div></div></div>', unsafe_allow_html=True)
             gen_time = 0
@@ -1198,12 +1361,23 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
             context = ""
             sources_meta = []
             for i, c in enumerate(top_chunks):
-                context += f"\n[Source {i+1}: {c['source']}]\n{c['text']}\n"
+                meta = c.get("metadata", {})
+                meta_header = ""
+                if meta:
+                    meta_fields = []
+                    if meta.get("author"): meta_fields.append(f"Author: {meta['author']}")
+                    if meta.get("created_time"): meta_fields.append(f"Created: {meta['created_time']}")
+                    if meta.get("modified_time"): meta_fields.append(f"Modified: {meta['modified_time']}")
+                    if meta_fields:
+                        meta_header = " | " + " | ".join(meta_fields)
+                context += f"\n[Source {i+1}: {c['source']}{meta_header}]\n{c['text']}\n"
+                
                 sources_meta.append({
                     "id": i+1, 
                     "source": c["source"], 
                     "text": c.get("retrieval_text", c["text"]),
-                    "score": c.get("score", 0.95 - (i * 0.05))
+                    "score": c.get("score", 0.95 - (i * 0.05)),
+                    "metadata": meta
                 })
             
             # 2. Generation
@@ -1221,10 +1395,11 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
                     chat_history.append({"user": m["content"], "bot": bot_content})
 
             streamer = engine.generate_stream(
-                prompt, 
-                context, 
-                chat_history, 
-                api_key=st.session_state.get("google_api_key")
+                prompt,
+                context,
+                chat_history,
+                api_key=st.session_state.get("google_api_key"),
+                app_prompt=app_prompt
             )
 
             start_time = time.time()

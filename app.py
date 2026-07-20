@@ -46,7 +46,16 @@ while True:
     context = ""
     sources = set()
     for c in top_chunks:
-        context += f"\n[Source: {c['source']} | Score: {c['score']:.3f}]\n{c['text'][:200]}...\n"
+        meta = c.get("metadata", {})
+        meta_header = ""
+        if meta:
+            meta_fields = []
+            if meta.get("author"): meta_fields.append(f"Author: {meta['author']}")
+            if meta.get("created_time"): meta_fields.append(f"Created: {meta['created_time']}")
+            if meta.get("modified_time"): meta_fields.append(f"Modified: {meta['modified_time']}")
+            if meta_fields:
+                meta_header = " | " + " | ".join(meta_fields)
+        context += f"\n[Source: {c['source']}{meta_header} | Score: {c['score']:.3f}]\n{c['text'][:200]}...\n"
         sources.add(c["source"])
 
     print(f"✅ Retrieved from: {', '.join(sources)}")

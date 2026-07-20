@@ -1,6 +1,7 @@
 import os
 import time
 import math
+from datetime import datetime
 import torch
 import faiss
 import numpy as np
@@ -234,6 +235,165 @@ def extract_text_from_file(filepath):
         print(f"[!] Error reading {filepath}: {e}")
     return ""
 
+def extract_metadata_and_text(filepath):
+    import os
+    from datetime import datetime
+    ext = os.path.splitext(filepath)[1].lower()
+    
+    # 1. Base system metadata
+    meta = {
+        "filename": os.path.basename(filepath),
+        "filepath": filepath.replace('\\', '/'),
+        "file_size_bytes": os.path.getsize(filepath),
+        "created_time": datetime.fromtimestamp(os.path.getctime(filepath)).strftime('%Y-%m-%d %H:%M:%S'),
+        "modified_time": datetime.fromtimestamp(os.path.getmtime(filepath)).strftime('%Y-%m-%d %H:%M:%S'),
+        "author": "",
+        "creator": "",
+        "title": "",
+        "subject": "",
+        "keywords": "",
+        "description": ""
+    }
+    
+    text = ""
+    try:
+        if ext == ".txt":
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+        elif ext == ".pdf":
+            doc = fitz.open(filepath)
+            for page in doc:
+                text += page.get_text() + "\n"
+            
+            # Extract PDF metadata
+            pdf_meta = doc.metadata
+            if pdf_meta:
+                meta["author"] = pdf_meta.get("author") or ""
+                meta["creator"] = pdf_meta.get("creator") or ""
+                meta["title"] = pdf_meta.get("title") or ""
+                meta["subject"] = pdf_meta.get("subject") or ""
+                meta["keywords"] = pdf_meta.get("keywords") or ""
+                
+                # Format internal PDF creation dates if available (typically D:YYYYMMDDHHMMSS)
+                c_date = pdf_meta.get("creationDate")
+                if c_date and c_date.startswith("D:"):
+                    try:
+                        date_str = c_date[2:16]
+                        dt = datetime.strptime(date_str, "%Y%m%d%H%M%S")
+                        meta["created_time"] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                    except Exception:
+                        pass
+                m_date = pdf_meta.get("modDate")
+                if m_date and m_date.startswith("D:"):
+                    try:
+                        date_str = m_date[2:16]
+                        dt = datetime.strptime(date_str, "%Y%m%d%H%M%S")
+                        meta["modified_time"] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                    except Exception:
+                        pass
+            doc.close()
+            
+        elif ext == ".docx":
+            doc = docx.Document(filepath)
+            text = "\n".join([para.text for para in doc.paragraphs])
+            
+            # Extract DOCX core properties
+            props = doc.core_properties
+            if props:
+                meta["author"] = props.author or ""
+                meta["creator"] = props.last_modified_by or ""
+                meta["title"] = props.title or ""
+                meta["subject"] = props.subject or ""
+                meta["keywords"] = props.keywords or ""
+                
+                if props.created:
+                    try:
+                        meta["created_time"] = props.created.strftime('%Y-%m-%d %H:%M:%S')
+                    except Exception:
+                        pass
+                if props.modified:
+                    try:
+                        meta["modified_time"] = props.modified.strftime('%Y-%m-%d %H:%M:%S')
+                    except Exception:
+                        pass
+                        
+        elif ext in (".xlsx", ".xlsm"):
+            text = extract_text_from_excel(filepath)
+            
+            # Extract Excel properties
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+                props = wb.properties
+                if props:
+                    meta["author"] = props.creator or ""
+                    meta["creator"] = props.lastModifiedBy or ""
+                    meta["title"] = props.title or ""
+                    meta["subject"] = props.subject or ""
+                    meta["keywords"] = props.keywords or ""
+                    meta["description"] = props.description or ""
+                    
+                    if props.created:
+                        meta["created_time"] = props.created.strftime('%Y-%m-%d %H:%M:%S')
+                    if props.modified:
+                        meta["modified_time"] = props.modified.strftime('%Y-%m-%d %H:%M:%S')
+                wb.close()
+            except Exception as e:
+                print(f"[!] Error reading Excel metadata for {filepath}: {e}")
+                
+        elif ext in (".html", ".htm"):
+            try:
+                from bs4 import BeautifulSoup
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                    html_content = f.read()
+                    soup = BeautifulSoup(html_content, "html.parser")
+                    text = soup.get_text(separator="\n", strip=True)
+                    
+                    # Extract title
+                    if soup.title and soup.title.string:
+                        meta["title"] = soup.title.string.strip()
+                        
+                    # Extract meta tags
+                    meta_author = soup.find("meta", attrs={"name": "author"})
+                    if meta_author:
+                        meta["author"] = meta_author.get("content", "").strip()
+                        
+                    meta_desc = soup.find("meta", attrs={"name": "description"})
+                    if meta_desc:
+                        meta["description"] = meta_desc.get("content", "").strip()
+                        
+                    meta_keywords = soup.find("meta", attrs={"name": "keywords"})
+                    if meta_keywords:
+                        meta["keywords"] = meta_keywords.get("content", "").strip()
+            except ImportError:
+                print("[!] BeautifulSoup4 is required for HTML parsing. Run `pip install beautifulsoup4`")
+    except Exception as e:
+        print(f"[!] Error reading {filepath}: {e}")
+        
+    return text, meta
+
+def format_metadata_header(meta):
+    header = "[Document Metadata]\n"
+    header += f"- Filename: {meta['filename']}\n"
+    header += f"- Path: {meta['filepath']}\n"
+    header += f"- Size: {meta['file_size_bytes'] / 1024:.1f} KB\n"
+    header += f"- Created: {meta['created_time']}\n"
+    header += f"- Modified: {meta['modified_time']}\n"
+    if meta["author"]:
+        header += f"- Author: {meta['author']}\n"
+    if meta["creator"]:
+        header += f"- Creator/Editor: {meta['creator']}\n"
+    if meta["title"]:
+        header += f"- Title: {meta['title']}\n"
+    if meta["subject"]:
+        header += f"- Subject: {meta['subject']}\n"
+    if meta["keywords"]:
+        header += f"- Keywords: {meta['keywords']}\n"
+    if meta["description"]:
+        header += f"- Description: {meta['description']}\n"
+    header += "------------------\n\n"
+    return header
+
 def reciprocal_rank_fusion(results_list, k=60):
     fused_scores = {}
     for results in results_list:
@@ -375,6 +535,24 @@ class RAGEngine:
                     chunk_texts = [item["text"] for item in self.chunks]
                     embeddings_np = self.embedder.encode(chunk_texts, convert_to_numpy=True).astype("float32")
                     faiss.normalize_L2(embeddings_np)
+                
+                # Upgrade cache: populate missing metadata field
+                updated_cache = False
+                for c in self.chunks:
+                    if "metadata" not in c:
+                        full_path = os.path.join(folder, c["source"])
+                        if os.path.exists(full_path):
+                            try:
+                                _, meta = extract_metadata_and_text(full_path)
+                                c["metadata"] = meta
+                                updated_cache = True
+                            except Exception:
+                                c["metadata"] = {}
+                        else:
+                            c["metadata"] = {}
+                
+                if updated_cache or data.get("embeddings_np", None) is None:
+                    print("[*] Saving upgraded cache file...")
                     torch.save({
                         "chunks": self.chunks,
                         "parent_chunks": self.parent_chunks,
@@ -472,14 +650,17 @@ class RAGEngine:
                 if not os.path.exists(full_path):
                     continue
 
-                text = extract_text_from_file(full_path)
-                if not text.strip():
+                raw_text, meta = extract_metadata_and_text(full_path)
+                if not raw_text.strip():
                     print(f"[!] Skipping {relpath}: no text extracted")
                     continue
 
                 print(f"[+] Processing {relpath}...")
                 parts = relpath.split('/')
                 namespace = parts[0] if len(parts) > 1 else (parts[0] if parts else 'root')
+
+                metadata_header = format_metadata_header(meta)
+                text = metadata_header + raw_text
 
                 if chunking_mode == "semantic":
                     parents = semantic_chunk_text(text, self.embedder)
@@ -498,7 +679,8 @@ class RAGEngine:
                             "chunk_id": i,
                             "text": c_text,
                             "parent_id": p_id,
-                            "namespace": namespace
+                            "namespace": namespace,
+                            "metadata": meta
                         })
 
                 # Update registry mtime
@@ -572,12 +754,14 @@ class RAGEngine:
                     parts = relpath.split('/')
                     namespace = parts[0] if len(parts) > 1 else (parts[0] if parts else 'root')
 
-                    text = extract_text_from_file(path)
-                    if not text.strip():
+                    raw_text, meta = extract_metadata_and_text(path)
+                    if not raw_text.strip():
                         print(f"[!] Skipping {relpath}: no text extracted")
                         continue
 
                     print(f"[+] Processing {relpath} (namespace={namespace})...")
+                    metadata_header = format_metadata_header(meta)
+                    text = metadata_header + raw_text
                     
                     if chunking_mode == "semantic":
                         parents = semantic_chunk_text(text, self.embedder)
@@ -596,7 +780,8 @@ class RAGEngine:
                                 "chunk_id": i,
                                 "text": c_text,
                                 "parent_id": p_id,
-                                "namespace": namespace
+                                "namespace": namespace,
+                                "metadata": meta
                             })
 
                     registry[relpath] = os.path.getmtime(path)
@@ -643,10 +828,23 @@ class RAGEngine:
             outputs = self.model.generate(**inputs, max_new_tokens=50, do_sample=False)
             return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    def retrieve(self, question, k=3, use_hybrid=True, use_hyde=False, use_rerank=True, use_parent=True):
+    def retrieve(self, question, k=3, use_hybrid=True, use_hyde=False, use_rerank=True, use_parent=True, allowed_namespaces=None):
         metrics = {}
         start = time.time()
-        
+
+        # Application scoping (Part 2): when a specific app is selected, restrict the
+        # retrieval candidate pool to chunks whose namespace belongs to that app. This
+        # stops another application's documents (e.g. its "user creation" steps) from
+        # ever entering the context in the first place.
+        allowed_set = None
+        if allowed_namespaces:
+            allowed_set = {str(ns).lower() for ns in allowed_namespaces}
+
+        def _is_allowed(idx):
+            if allowed_set is None:
+                return True
+            return self.chunks[idx].get("namespace", "").lower() in allowed_set
+
         # 1. Semantic Search (with optional HyDE)
         search_query = question
         if use_hyde:
@@ -657,7 +855,7 @@ class RAGEngine:
             except Exception as e:
                 import traceback
                 print(f"[!] HyDE failed:\n{traceback.format_exc()}")
-        
+
         # If FAISS index isn't available (e.g., no KB files indexed), skip semantic search
         if self.faiss_index is not None and getattr(self.faiss_index, "ntotal", 0) > 0:
             query_vec = self.embedder.encode([search_query], convert_to_numpy=True).astype("float32")
@@ -667,19 +865,22 @@ class RAGEngine:
                 self.faiss_index.hnsw.efSearch = 64
             except Exception:
                 pass
-            _, s_indices = self.faiss_index.search(query_vec, k=min(20, self.faiss_index.ntotal))
-            semantic_ids = [int(idx) for idx in s_indices[0] if idx != -1]
+            # When filtering by namespace, pull a wider pool so enough in-scope chunks survive.
+            search_k = min(self.faiss_index.ntotal, 100 if allowed_set else 20)
+            _, s_indices = self.faiss_index.search(query_vec, k=search_k)
+            semantic_ids = [int(idx) for idx in s_indices[0] if idx != -1 and _is_allowed(int(idx))][:20]
             metrics["semantic_time"] = time.time() - start
         else:
             semantic_ids = []
             metrics["semantic_time"] = 0.0
-        
+
         # 2. Keyword Search (BM25)
         start = time.time()
         if use_hybrid:
             tokenized_query = tokenize(question)
             bm25_scores = self.bm25_index.get_scores(tokenized_query)
-            keyword_ids = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:20]
+            ranked_ids = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)
+            keyword_ids = [i for i in ranked_ids if _is_allowed(i)][:20]
         else:
             keyword_ids = []
         metrics["keyword_time"] = time.time() - start
@@ -731,7 +932,13 @@ class RAGEngine:
         metrics["rerank_time"] = time.time() - start
         return final_results, metrics
 
-    def generate_stream(self, question, context, history, max_tokens=512, api_key=None):
+    def generate_stream(self, question, context, history, max_tokens=512, api_key=None, app_prompt=None):
+        # Application-scoping block. When the user has picked a specific application
+        # (e.g. TrackWise, ThingWorx), this is prepended to the system prompt so that
+        # ambiguous questions ("how is a user created") are answered strictly in the
+        # context of that application instead of leaking details from another one.
+        app_section = f"{app_prompt.strip()}\n\n" if app_prompt else ""
+
         def count_tokens(text):
             if self.is_gguf and hasattr(self.model, "tokenize"):
                 try:
@@ -752,7 +959,7 @@ class RAGEngine:
                 limit_n_ctx = getattr(self.model.config, "max_position_embeddings", limit_n_ctx)
             
             # Estimate token usage of system prompt template without context
-            system_template = (
+            system_template = app_section + (
                 "IDENTITY AND CREATOR RULES:\n"
                 "- Your name is CognIQ.\n"
                 "- You are a local, secure closed-context corporate RAG assistant.\n"
@@ -813,7 +1020,7 @@ class RAGEngine:
                         break
                 context = truncated_context
 
-        system_msg = (
+        system_msg = app_section + (
             "IDENTITY AND CREATOR RULES:\n"
             "- Your name is CognIQ.\n"
             "- You are a local, secure closed-context corporate RAG assistant.\n"

@@ -215,3 +215,82 @@ sudo systemctl restart ragbot
 # 5. Monitor real-time logs and verify startup stability
 sudo journalctl -u ragbot.service -f
 ```
+
+# Troubleshooting
+## 203/EXEC Error
+```bash
+Started Streamlit RAG Chatbot.
+ragbot.service: Failed to locate executable /home/ec2-user/rag-close>
+ragbot.service: Failed at step EXEC spawning /home/ec2-user/rag-clos>
+ragbot.service: Main process exited, code=exited, status=203/EXEC
+ragbot.service: Failed with result 'exit-code'.
+ragbot.service: Failed to start Streamlit RAG Chatbot.
+```
+
+this could mean 4 things , problem is in
+1. The Directory Access Layer
+2. The File Execution Layer
+3. The Identity Layer (Service Configuration)
+4. The Security Policy Layer (SELinux)
+### 1. Directory Access & Traversal
+
+- **Objective:** Ensure the system service manager can traverse the entire folder path leading to the application.
+- **Context:** On Linux systems, a process must have execute (`+x`) permissions for **every parent directory** in a path to access the target file. Cloud environments frequently lock down home directories (`/home/username`) by default, blocking background processes.
+- **Action:** Grant execution permissions to the necessary path segments:
+
+```bash
+sudo chmod +x /home/ec2-user
+sudo chmod +x /home/ec2-user/rag-closed-context-qa
+```
+### 2. Target File Executability
+
+- **Objective:** Confirm the target binary exists at the defined path and is explicitly marked as executable.
+- **Context:** A script or binary cannot run unless its file permissions allow execution.
+- **Action:** Inspect the file attributes using `ls -l`:
+```bash
+ls -l /home/ec2-user/rag-closed-context-qa/venv/bin/streamlit
+```
+**Verification:** The output strings must begin with permissions containing `x` flags (e.g., `-rwxr-xr-x`). If the execution flag is missing or permissions fail due to ownership restrictions, apply `sudo chmod +x` to the binary:
+```bash
+sudo chmod +x /home/ec2-user/rag-closed-context-qa/venv/bin/streamlit
+```
+### 3. Service Identity & Context Alignment
+
+- **Objective:** Validate that the service configuration uses the correct system user and matching workspace directories.
+- **Context:** If the unit file defaults to a low-privilege system user (like `nobody`), it will be blocked from reading files owned by regular users.
+- **Action:** Inspect the service definition:
+```bash
+cat /etc/systemd/system/ragbot.service
+```
+- **Verification:** Ensure the `[Service]` section explicitly declares the appropriate runtime user and working environment mappings:
+```TOML
+[Service]
+User=ec2-user
+WorkingDirectory=/home/ec2-user/rag-closed-context-qa
+```
+
+### 4. SELinux Security Policies
+- **Objective:** Verify if Security-Enhanced Linux (SELinux) is enforcing policies that restrict service executions from user land.
+- **Context:** On RHEL, CentOS, and Amazon Linux distributions, SELinux policy frameworks explicitly forbid background daemons from spawning executables located inside a `/home` path, regardless of standard file system permissions.
+- **Action:**
+```bash
+sestatus
+```
+- If the current mode shows `enforcing`, relabel the virtual environment binaries to a standard executable context (`bin_t`) so SELinux permits system deployment:
+```bash
+sudo chcon -R -t bin_t /home/ec2-user/rag-closed-context-qa/venv/bin/
+```
+### Post Troubleshooting steps
+```bash
+# 1. Clear the systemd failure state state
+sudo systemctl reset-failed ragbot.service
+
+# 2. Reload unit files to register modifications
+sudo systemctl daemon-reload
+
+# 3. Launch the service
+sudo systemctl start ragbot.service
+
+# 4. Review runtime output to confirm initialization
+sudo journalctl -u ragbot.service -n 20
+```
