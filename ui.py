@@ -301,7 +301,7 @@ footer {display: none !important;}
 
 /* Adjust chat input container positioning and layout */
 div[data-testid="stChatInput"] {
-    bottom: 4px !important;
+    bottom: 16px !important;
     padding-bottom: 0px !important;
     padding-top: 0px !important;
     margin: 0px !important;
@@ -315,6 +315,49 @@ div[data-testid="stChatInput"] {
 div[data-testid="stChatInput"] form {
     margin: 0px !important;
     padding: 0px !important;
+    position: relative !important;
+}
+
+/* Add top padding to textarea to make height a bit larger while keeping writing area clean */
+div[data-testid="stChatInput"] textarea {
+    padding-top: 42px !important;
+    min-height: 95px !important;
+}
+
+/* Position app pill floating inside top-left of the chatbox */
+.st-key-selected_app {
+    position: absolute !important;
+    top: 8px !important;
+    left: 14px !important;
+    z-index: 99 !important;
+    width: auto !important;
+    max-width: 220px !important;
+}
+
+/* Hide default stacked label */
+.st-key-selected_app label { display: none !important; }
+
+/* Turn BaseWeb select control into a rounded compact pill */
+.st-key-selected_app div[data-baseweb="select"] > div {
+    border-radius: 9999px !important;
+    background-color: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    padding-left: 10px !important;
+    padding-right: 6px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+    transition: all 0.15s ease !important;
+}
+.st-key-selected_app div[data-baseweb="select"] > div:hover {
+    border-color: #94a3b8 !important;
+    background-color: #e2e8f0 !important;
+}
+.st-key-selected_app div[data-baseweb="select"] div,
+.st-key-selected_app div[data-baseweb="select"] span {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
 }
 
 /* Add tagline above the chat input box */
@@ -324,7 +367,7 @@ div[data-testid="stChatInput"]::before {
     text-align: center;
     font-size: 12px;
     color: #9ca3af;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     width: 100%;
 }
 
@@ -1266,52 +1309,17 @@ for msg in st.session_state["messages"]:
         sources_html = format_sources_html(msg.get("sources", []))
         st.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{msg["content"]}</div>{sources_html}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
 
-# --- APPLICATION SCOPE SELECTOR (styled as a compact pill, attached above the chat input) ---
-st.markdown("""
-<style>
-/* Pull the pill down so it hugs the top edge of the fixed chat-input bar */
-.st-key-selected_app {
-    margin-bottom: -4px !important;
-    padding-left: 2px !important;
-}
-/* Hide the default stacked label — the leading icon in the value carries the meaning */
-.st-key-selected_app label { display: none !important; }
-/* Turn the BaseWeb select control into a rounded, subtle pill (model-picker look) */
-.st-key-selected_app div[data-baseweb="select"] > div {
-    border-radius: 9999px !important;
-    background-color: #f7f7f5 !important;
-    border: 1px solid #e2e8f0 !important;
-    min-height: 34px !important;
-    padding-left: 12px !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-    transition: all 0.15s ease !important;
-}
-.st-key-selected_app div[data-baseweb="select"] > div:hover {
-    border-color: #cbd5e1 !important;
-    background-color: #f1f0ec !important;
-}
-.st-key-selected_app div[data-baseweb="select"] div,
-.st-key-selected_app div[data-baseweb="select"] span {
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    color: #374151 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Leading target emoji on each label so the pill reads as an app picker without a text label.
-app_col, _spacer = st.columns([1.2, 3])
-with app_col:
-    st.selectbox(
-        "Application scope",
-        APP_OPTIONS,
-        key="selected_app",
-        format_func=lambda a: f"🎯 {a}",
-        label_visibility="collapsed",
-        help="Scope every answer to a specific application. This prepends an application "
-             "prompt and restricts document retrieval so ambiguous questions "
-             "(e.g. 'how is a user created') are answered for the selected app only.",
-    )
+# --- APPLICATION SCOPE SELECTOR ---
+st.selectbox(
+    "Application scope",
+    APP_OPTIONS,
+    key="selected_app",
+    format_func=lambda a: f"🎯 {a}",
+    label_visibility="collapsed",
+    help="Scope every answer to a specific application. This prepends an application "
+         "prompt and restricts document retrieval so ambiguous questions "
+         "(e.g. 'how is a user created') are answered for the selected app only.",
+)
 
 # Resolve the application-scoping prompt and retrieval namespace filter for the current selection.
 app_prompt = build_app_prompt(st.session_state["selected_app"])

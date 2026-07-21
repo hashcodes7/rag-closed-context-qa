@@ -199,6 +199,7 @@ The production application files reside in:
 Execute this exact command flow to pull updates, sync dependencies, and restart the service:
 
 ```bash
+sudo su - ec2-user
 # 1. Navigate to the application folder
 cd /home/ec2-user/rag-closed-context-qa
 
