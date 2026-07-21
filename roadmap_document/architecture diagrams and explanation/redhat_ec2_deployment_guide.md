@@ -217,6 +217,13 @@ sudo systemctl restart ragbot
 sudo journalctl -u ragbot.service -f
 ```
 
+execute this code to just pull
+```bash
+sudo su - ec2-user
+cd /home/ec2-user/rag-closed-context-qa
+git pull
+sudo systemctl restart ragbot
+```
 # Troubleshooting
 ## 203/EXEC Error
 ```bash

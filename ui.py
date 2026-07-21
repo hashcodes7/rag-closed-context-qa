@@ -311,27 +311,27 @@ div[data-testid="stChatInput"] {
     background-color: transparent !important;
 }
 
-/* Ensure inner form elements have no bottom margins */
+/* Ensure inner form elements have relative positioning */
 div[data-testid="stChatInput"] form {
     margin: 0px !important;
     padding: 0px !important;
     position: relative !important;
 }
 
-/* Add top padding to textarea to make height a bit larger while keeping writing area clean */
+/* Keep chat input textarea height normal and clean */
 div[data-testid="stChatInput"] textarea {
-    padding-top: 42px !important;
-    min-height: 95px !important;
+    padding-top: 10px !important;
 }
 
-/* Position app pill floating inside top-left of the chatbox */
+/* Float app selection pill directly above the chat input box within the fixed bottom container */
 .st-key-selected_app {
     position: absolute !important;
-    top: 8px !important;
-    left: 14px !important;
-    z-index: 99 !important;
+    top: -40px !important;
+    left: 0px !important;
+    z-index: 99999 !important;
     width: auto !important;
-    max-width: 220px !important;
+    max-width: 240px !important;
+    margin: 0 !important;
 }
 
 /* Hide default stacked label */
@@ -340,34 +340,34 @@ div[data-testid="stChatInput"] textarea {
 /* Turn BaseWeb select control into a rounded compact pill */
 .st-key-selected_app div[data-baseweb="select"] > div {
     border-radius: 9999px !important;
-    background-color: #f1f5f9 !important;
+    background-color: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
-    min-height: 28px !important;
-    height: 28px !important;
-    padding-left: 10px !important;
-    padding-right: 6px !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+    min-height: 32px !important;
+    height: 32px !important;
+    padding-left: 12px !important;
+    padding-right: 8px !important;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08) !important;
     transition: all 0.15s ease !important;
 }
 .st-key-selected_app div[data-baseweb="select"] > div:hover {
     border-color: #94a3b8 !important;
-    background-color: #e2e8f0 !important;
+    background-color: #f8fafc !important;
 }
 .st-key-selected_app div[data-baseweb="select"] div,
 .st-key-selected_app div[data-baseweb="select"] span {
-    font-size: 12px !important;
+    font-size: 13px !important;
     font-weight: 600 !important;
     color: #374151 !important;
 }
 
-/* Add tagline above the chat input box */
+/* Add tagline above the chat input box and pill */
 div[data-testid="stChatInput"]::before {
     content: "Grounded in your tickets & KB · every answer cites its source";
     display: block;
     text-align: center;
     font-size: 12px;
     color: #9ca3af;
-    margin-bottom: 6px;
+    margin-bottom: 44px;
     width: 100%;
 }
 
