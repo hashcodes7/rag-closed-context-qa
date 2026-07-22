@@ -322,7 +322,7 @@ div[data-testid="stChatInput"] form {
 /* Container for pill anchored directly inside the chatbox component */
 .app-pill-row {
     position: absolute !important;
-    bottom: 120px !important;
+    bottom: 100px !important;
     left: 85px !important;
     z-index: 999999 !important;
     width: auto !important;
