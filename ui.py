@@ -345,7 +345,7 @@ div[data-testid="stChatInput"] form {
     background-color: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
     min-height: 28px !important;
-    height: 28px !important;
+    height: 5px !important;
     padding-left: 10px !important;
     padding-right: 6px !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
