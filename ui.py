@@ -299,38 +299,32 @@ div[data-testid="stChatMessage"] {
 header {display: none !important;}
 footer {display: none !important;}
 
-/* Adjust chat input container positioning and layout */
-div[data-testid="stChatInput"] {
-    bottom: 16px !important;
-    padding-bottom: 0px !important;
-    padding-top: 0px !important;
-    margin: 0px !important;
+/* Adjust bottom container layout so app pill sits on left of tagline */
+div[data-testid="stBottom"] {
+    background-color: #ffffff !important;
+    padding-bottom: 12px !important;
+}
+
+div[data-testid="stBottom"] > div {
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    background-color: transparent !important;
 }
 
-/* Ensure inner form elements have relative positioning */
-div[data-testid="stChatInput"] form {
-    margin: 0px !important;
-    padding: 0px !important;
+/* App pill row sitting inside fixed bottom container */
+.app-pill-row {
     position: relative !important;
+    height: 0px !important;
+    z-index: 99999 !important;
 }
 
-/* Keep chat input textarea height normal and clean */
-div[data-testid="stChatInput"] textarea {
-    padding-top: 10px !important;
-}
-
-/* Float app selection pill directly above the chat input box within the fixed bottom container */
 .st-key-selected_app {
     position: absolute !important;
-    top: -40px !important;
-    left: 0px !important;
-    z-index: 99999 !important;
+    bottom: 120px !important;
+    left: 85px !important;
     width: auto !important;
-    max-width: 240px !important;
+    min-width: 170px !important;
+    max-width: 230px !important;
     margin: 0 !important;
 }
 
@@ -342,11 +336,11 @@ div[data-testid="stChatInput"] textarea {
     border-radius: 9999px !important;
     background-color: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
-    min-height: 32px !important;
-    height: 32px !important;
-    padding-left: 12px !important;
-    padding-right: 8px !important;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08) !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    padding-left: 10px !important;
+    padding-right: 6px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
     transition: all 0.15s ease !important;
 }
 .st-key-selected_app div[data-baseweb="select"] > div:hover {
@@ -355,19 +349,25 @@ div[data-testid="stChatInput"] textarea {
 }
 .st-key-selected_app div[data-baseweb="select"] div,
 .st-key-selected_app div[data-baseweb="select"] span {
-    font-size: 13px !important;
+    font-size: 12px !important;
     font-weight: 600 !important;
     color: #374151 !important;
 }
 
-/* Add tagline above the chat input box and pill */
+/* Ensure BaseWeb dropdown menu pops up above fixed elements */
+div[data-baseweb="popover"], div[data-baseweb="menu"] {
+    z-index: 9999999 !important;
+}
+
+/* Tagline centered above the chat input box */
 div[data-testid="stChatInput"]::before {
     content: "Grounded in your tickets & KB · every answer cites its source";
     display: block;
     text-align: center;
     font-size: 12px;
     color: #9ca3af;
-    margin-bottom: 44px;
+    margin-bottom: 8px;
+    line-height: 28px;
     width: 100%;
 }
 
@@ -1309,17 +1309,20 @@ for msg in st.session_state["messages"]:
         sources_html = format_sources_html(msg.get("sources", []))
         st.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{msg["content"]}</div>{sources_html}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
 
-# --- APPLICATION SCOPE SELECTOR ---
-st.selectbox(
-    "Application scope",
-    APP_OPTIONS,
-    key="selected_app",
-    format_func=lambda a: f"🎯 {a}",
-    label_visibility="collapsed",
-    help="Scope every answer to a specific application. This prepends an application "
-         "prompt and restricts document retrieval so ambiguous questions "
-         "(e.g. 'how is a user created') are answered for the selected app only.",
-)
+# --- APPLICATION SCOPE SELECTOR (fixed at bottom with st.bottom) ---
+with st.bottom:
+    st.markdown('<div class="app-pill-row">', unsafe_allow_html=True)
+    st.selectbox(
+        "Application scope",
+        APP_OPTIONS,
+        key="selected_app",
+        format_func=lambda a: f"🎯 {a}",
+        label_visibility="collapsed",
+        help="Scope every answer to a specific application. This prepends an application "
+             "prompt and restricts document retrieval so ambiguous questions "
+             "(e.g. 'how is a user created') are answered for the selected app only.",
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Resolve the application-scoping prompt and retrieval namespace filter for the current selection.
 app_prompt = build_app_prompt(st.session_state["selected_app"])
