@@ -299,29 +299,37 @@ div[data-testid="stChatMessage"] {
 header {display: none !important;}
 footer {display: none !important;}
 
-/* Adjust bottom container layout so app pill sits on left of tagline */
-div[data-testid="stBottom"] {
-    background-color: #ffffff !important;
-    padding-bottom: 12px !important;
-}
-
-div[data-testid="stBottom"] > div {
+/* Adjust chat input container positioning and layout */
+div[data-testid="stChatInput"] {
+    bottom: 20px !important;
+    padding-bottom: 0px !important;
+    padding-top: 0px !important;
+    margin: 0px !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
+    background-color: transparent !important;
+    z-index: 1000 !important;
 }
 
-/* App pill row sitting inside fixed bottom container */
-.app-pill-row {
+/* Ensure inner form elements have relative positioning */
+div[data-testid="stChatInput"] form {
+    margin: 0px !important;
+    padding: 0px !important;
     position: relative !important;
-    height: 0px !important;
-    z-index: 99999 !important;
 }
 
-.st-key-selected_app {
+/* Container for pill anchored directly inside the chatbox component */
+.app-pill-row {
     position: absolute !important;
     bottom: 120px !important;
     left: 85px !important;
+    z-index: 999999 !important;
+    width: auto !important;
+    margin: 0 !important;
+}
+
+.st-key-selected_app {
     width: auto !important;
     min-width: 170px !important;
     max-width: 230px !important;
@@ -1309,20 +1317,19 @@ for msg in st.session_state["messages"]:
         sources_html = format_sources_html(msg.get("sources", []))
         st.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{msg["content"]}</div>{sources_html}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
 
-# --- APPLICATION SCOPE SELECTOR (fixed at bottom with st.bottom) ---
-with st.bottom:
-    st.markdown('<div class="app-pill-row">', unsafe_allow_html=True)
-    st.selectbox(
-        "Application scope",
-        APP_OPTIONS,
-        key="selected_app",
-        format_func=lambda a: f"🎯 {a}",
-        label_visibility="collapsed",
-        help="Scope every answer to a specific application. This prepends an application "
-             "prompt and restricts document retrieval so ambiguous questions "
-             "(e.g. 'how is a user created') are answered for the selected app only.",
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
+# --- APPLICATION SCOPE SELECTOR ---
+st.markdown('<div class="app-pill-row">', unsafe_allow_html=True)
+st.selectbox(
+    "Application scope",
+    APP_OPTIONS,
+    key="selected_app",
+    format_func=lambda a: f"🎯 {a}",
+    label_visibility="collapsed",
+    help="Scope every answer to a specific application. This prepends an application "
+         "prompt and restricts document retrieval so ambiguous questions "
+         "(e.g. 'how is a user created') are answered for the selected app only.",
+)
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Resolve the application-scoping prompt and retrieval namespace filter for the current selection.
 app_prompt = build_app_prompt(st.session_state["selected_app"])
