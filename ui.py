@@ -319,33 +319,33 @@ div[data-testid="stChatInput"] form {
     position: relative !important;
 }
 
-/* Container for pill anchored directly inside the chatbox component */
+/* App pill row sitting inside fixed bottom container */
 .app-pill-row {
-    position: absolute !important;
-    bottom: 100px !important;
-    left: 85px !important;
-    z-index: 999999 !important;
-    width: auto !important;
-    margin: 0 !important;
+    position: relative !important;
+    height: 0px !important;
+    z-index: 99999 !important;
 }
 
 .st-key-selected_app {
+    position: absolute !important;
+    bottom: 120px !important;
+    left: 85px !important;
     width: auto !important;
     min-width: 170px !important;
     max-width: 230px !important;
     margin: 0 !important;
 }
 
-/* Hide default stacked label */
+/* Hide default label */
 .st-key-selected_app label { display: none !important; }
 
-/* Turn BaseWeb select control into a rounded compact pill */
+/* Styling the BaseWeb select control into a compact rounded pill */
 .st-key-selected_app div[data-baseweb="select"] > div {
-    border-radius: 9999px !important;
+    border-radius: 12px !important;
     background-color: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
     min-height: 28px !important;
-    height: 5px !important;
+    height: 35px !important;
     padding-left: 10px !important;
     padding-right: 6px !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
