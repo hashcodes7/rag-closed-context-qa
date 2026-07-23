@@ -541,7 +541,7 @@ if "messages" not in st.session_state:
 
 # --- HEADER & STATUS BANNERS ---
 with st.container(key="header_container"):
-    col_hdr1, col_hdr2 = st.columns([1, 2.5])
+    col_hdr1, col_hdr2, col_hdr3 = st.columns([1, 2, 1])
     with col_hdr1:
         st.markdown("""
         <div class="engine-status" style="padding-top: 6px;">
@@ -557,6 +557,8 @@ with st.container(key="header_container"):
             label_visibility="collapsed",
             help="Scope every answer to a specific application context."
         )
+    with col_hdr3:
+        st.markdown('<div class="model-badge" style="visibility: hidden; border: none; background: transparent;"></div>', unsafe_allow_html=True)
 
 # Empty-chat landing page logo layout
 if not st.session_state["messages"]:
