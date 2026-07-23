@@ -1266,10 +1266,10 @@ if st.session_state.get("engine_error"):
     st.info("You can still use the admin dashboard pages. To retry, switch models or visit Settings.")
 
 with st.container(key="header_container"):
-    col_hdr1, col_hdr2, col_hdr3 = st.columns([1.2, 1.5, 1.2])
+    col_hdr1, col_hdr2 = st.columns([1, 2.2])
     with col_hdr1:
         st.markdown("""
-        <div class="engine-status" style="padding-top: 6px;">
+        <div class="engine-status" style="padding-top: 8px;">
             <span class="status-dot"></span> Engine ready
         </div>
         """, unsafe_allow_html=True)
@@ -1278,16 +1278,10 @@ with st.container(key="header_container"):
             "Application Scope",
             APP_OPTIONS,
             key="selected_app",
-            format_func=lambda a: f"🎯 Scope: {a}",
+            format_func=lambda a: f"🎯 Application: {a}",
             label_visibility="collapsed",
             help="Scope every answer to a specific application context. Restricts retrieval & prompts to the selected app."
         )
-    with col_hdr3:
-        st.markdown("""
-        <div class="model-badge" style="justify-content: flex-end; margin-top: 4px;">
-            ⚙️ Cognizant in-house model
-        </div>
-        """, unsafe_allow_html=True)
 
 # Empty-chat landing page logo layout
 if not st.session_state["messages"]:

@@ -541,10 +541,10 @@ if "messages" not in st.session_state:
 
 # --- HEADER & STATUS BANNERS ---
 with st.container(key="header_container"):
-    col_hdr1, col_hdr2, col_hdr3 = st.columns([1.2, 1.5, 1.2])
+    col_hdr1, col_hdr2 = st.columns([1, 2.2])
     with col_hdr1:
         st.markdown("""
-        <div class="engine-status" style="padding-top: 6px;">
+        <div class="engine-status" style="padding-top: 8px;">
             <span class="status-dot"></span> Engine ready (Mock Mode)
         </div>
         """, unsafe_allow_html=True)
@@ -553,16 +553,10 @@ with st.container(key="header_container"):
             "Application Scope",
             APP_OPTIONS,
             key="selected_app",
-            format_func=lambda a: f"🎯 Scope: {a}",
+            format_func=lambda a: f"🎯 Application: {a}",
             label_visibility="collapsed",
             help="Scope every answer to a specific application context."
         )
-    with col_hdr3:
-        st.markdown("""
-        <div class="model-badge" style="justify-content: flex-end; margin-top: 4px;">
-            ⚙️ Cognizant in-house model
-        </div>
-        """, unsafe_allow_html=True)
 
 # Empty-chat landing page logo layout
 if not st.session_state["messages"]:
