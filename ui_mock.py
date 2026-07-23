@@ -252,6 +252,7 @@ section[data-testid="stSidebar"][aria-expanded="false"] ~ section .st-key-header
 
 /* Compact, right-aligned Application Scope Selectbox */
 .st-key-selected_app {
+    width: 280px !important;
     max-width: 280px !important;
     margin-left: auto !important;
 }
@@ -557,7 +558,7 @@ if "messages" not in st.session_state:
 
 # --- HEADER & STATUS BANNERS ---
 with st.container(key="header_container"):
-    col_hdr1, col_hdr2 = st.columns([1, 2.2])
+    col_hdr1, col_hdr2 = st.columns([1, 1])
     with col_hdr1:
         st.markdown("""
         <div class="engine-status" style="padding-top: 8px;">
