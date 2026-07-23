@@ -465,10 +465,10 @@ div[data-testid="stSidebarUserContent"] {
     top: 0px !important;
     left: 21rem !important;
     right: 0px !important;
-    height: 60px !important;
+    min-height: 56px !important;
     background-color: #ffffff !important;
     z-index: 99999 !important;
-    padding: 10px 3.5rem 10px 2.5rem !important;
+    padding: 8px 2.5rem 8px 2rem !important;
     border-bottom: 1px solid #e2e8f0 !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
 }
@@ -477,17 +477,14 @@ section[data-testid="stSidebar"][aria-expanded="false"] ~ section .st-key-header
     left: 0px !important;
 }
 
-/* Compact, right-aligned Application Scope Selectbox */
-.st-key-selected_app {
-    width: 280px !important;
-    max-width: 280px !important;
-    margin-left: auto !important;
+.st-key-header_container div[data-testid="stHorizontalBlock"] {
+    align-items: center !important;
 }
+
 .st-key-selected_app div[data-baseweb="select"] > div {
     border-radius: 12px !important;
     background-color: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
-    height: 38px !important;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
 }
 .st-key-selected_app div[data-baseweb="select"] > div:hover {
@@ -1283,7 +1280,7 @@ if st.session_state.get("engine_error"):
     st.info("You can still use the admin dashboard pages. To retry, switch models or visit Settings.")
 
 with st.container(key="header_container"):
-    col_hdr1, col_hdr2 = st.columns([1, 1])
+    col_hdr1, col_hdr2 = st.columns([1.5, 1])
     with col_hdr1:
         st.markdown("""
         <div class="engine-status" style="padding-top: 8px;">
