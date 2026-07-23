@@ -465,30 +465,16 @@ div[data-testid="stSidebarUserContent"] {
     top: 0px !important;
     left: 21rem !important;
     right: 0px !important;
-    min-height: 56px !important;
+    height: 58px !important;
     background-color: #ffffff !important;
     z-index: 99999 !important;
-    padding: 8px 2.5rem 8px 2rem !important;
+    padding: 8px 2rem !important;
     border-bottom: 1px solid #e2e8f0 !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
 }
 
 section[data-testid="stSidebar"][aria-expanded="false"] ~ section .st-key-header_container {
     left: 0px !important;
-}
-
-.st-key-header_container div[data-testid="stHorizontalBlock"] {
-    align-items: center !important;
-}
-
-.st-key-selected_app div[data-baseweb="select"] > div {
-    border-radius: 12px !important;
-    background-color: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-}
-.st-key-selected_app div[data-baseweb="select"] > div:hover {
-    border-color: #94a3b8 !important;
 }
 
 .engine-status {
@@ -1280,10 +1266,10 @@ if st.session_state.get("engine_error"):
     st.info("You can still use the admin dashboard pages. To retry, switch models or visit Settings.")
 
 with st.container(key="header_container"):
-    col_hdr1, col_hdr2 = st.columns([1.5, 1])
+    col_hdr1, col_hdr2, col_hdr3 = st.columns([1.2, 1.5, 1.2])
     with col_hdr1:
         st.markdown("""
-        <div class="engine-status" style="padding-top: 8px;">
+        <div class="engine-status" style="padding-top: 6px;">
             <span class="status-dot"></span> Engine ready
         </div>
         """, unsafe_allow_html=True)
@@ -1292,10 +1278,16 @@ with st.container(key="header_container"):
             "Application Scope",
             APP_OPTIONS,
             key="selected_app",
-            format_func=lambda a: f"🎯 Application: {a}",
+            format_func=lambda a: f"🎯 Scope: {a}",
             label_visibility="collapsed",
             help="Scope every answer to a specific application context. Restricts retrieval & prompts to the selected app."
         )
+    with col_hdr3:
+        st.markdown("""
+        <div class="model-badge" style="justify-content: flex-end; margin-top: 4px;">
+            ⚙️ Cognizant in-house model
+        </div>
+        """, unsafe_allow_html=True)
 
 # Empty-chat landing page logo layout
 if not st.session_state["messages"]:
