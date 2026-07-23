@@ -319,47 +319,14 @@ div[data-testid="stChatInput"] form {
     position: relative !important;
 }
 
-/* App pill row sitting inside fixed bottom container */
-.app-pill-row {
-    position: relative !important;
-    height: 0px !important;
-    z-index: 99999 !important;
-}
-
-.st-key-selected_app {
-    position: absolute !important;
-    bottom: 120px !important;
-    left: 85px !important;
-    width: auto !important;
-    min-width: 170px !important;
-    max-width: 230px !important;
-    margin: 0 !important;
-}
-
-/* Hide default label */
-.st-key-selected_app label { display: none !important; }
-
-/* Styling the BaseWeb select control into a compact rounded pill */
+/* Sidebar Application Scope Selectbox Styling */
 .st-key-selected_app div[data-baseweb="select"] > div {
-    border-radius: 12px !important;
+    border-radius: 10px !important;
     background-color: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
-    min-height: 28px !important;
-    height: 35px !important;
-    padding-left: 10px !important;
-    padding-right: 6px !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
-    transition: all 0.15s ease !important;
 }
 .st-key-selected_app div[data-baseweb="select"] > div:hover {
     border-color: #94a3b8 !important;
-    background-color: #f8fafc !important;
-}
-.st-key-selected_app div[data-baseweb="select"] div,
-.st-key-selected_app div[data-baseweb="select"] span {
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    color: #374151 !important;
 }
 
 /* Ensure BaseWeb dropdown menu pops up above fixed elements */
@@ -786,6 +753,16 @@ with st.sidebar:
         st.session_state["messages"] = []
         st.session_state["current_page"] = "chat"
         st.rerun()
+
+    # Application Scope Selector
+    st.markdown("<div style='margin-top: 12px; margin-bottom: 4px; font-weight: 600; font-size: 13px; color: #374151;'>🎯 Application Scope</div>", unsafe_allow_html=True)
+    st.selectbox(
+        "Application Scope",
+        APP_OPTIONS,
+        key="selected_app",
+        label_visibility="collapsed",
+        help="Scope every answer to a specific application context. Restricts retrieval & prompts to the selected app."
+    )
 
     # Dynamic Knowledge Base Telemetry Card
     kb_folder = "knowledge_source"
@@ -1316,26 +1293,6 @@ for msg in st.session_state["messages"]:
     else:
         sources_html = format_sources_html(msg.get("sources", []))
         st.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{msg["content"]}</div>{sources_html}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
-
-# --- APPLICATION SCOPE SELECTOR & CHAT INPUT (FIXED AT BOTTOM) ---
-st_bottom = getattr(st, "bottom", getattr(st, "_bottom", None))
-if st_bottom is None:
-    import contextlib
-    st_bottom = contextlib.nullcontext()
-
-with st_bottom:
-    st.markdown('<div class="app-pill-row">', unsafe_allow_html=True)
-    st.selectbox(
-        "Application scope",
-        APP_OPTIONS,
-        key="selected_app",
-        format_func=lambda a: f"🎯 {a}",
-        label_visibility="collapsed",
-        help="Scope every answer to a specific application. This prepends an application "
-             "prompt and restricts document retrieval so ambiguous questions "
-             "(e.g. 'how is a user created') are answered for the selected app only.",
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # Resolve the application-scoping prompt and retrieval namespace filter for the current selection.
 app_prompt = build_app_prompt(st.session_state["selected_app"])
