@@ -470,16 +470,6 @@ with st.sidebar:
         st.session_state["current_page"] = "chat"
         st.rerun()
 
-    # Application Scope Selector
-    st.markdown("<div style='margin-top: 12px; margin-bottom: 4px; font-weight: 600; font-size: 13px; color: #374151;'>🎯 Application Scope</div>", unsafe_allow_html=True)
-    st.selectbox(
-        "Application Scope",
-        APP_OPTIONS,
-        key="selected_app",
-        label_visibility="collapsed",
-        help="Scope every answer to a specific application."
-    )
-
     kb_folder = "knowledge_source"
     file_count = 96
     kb_size_str = "51.6 MB"
@@ -541,16 +531,28 @@ if "messages" not in st.session_state:
     st.session_state["messages"] = []
 
 # --- HEADER & STATUS BANNERS ---
-st.markdown("""
-<div class="main-header-row">
-    <div class="engine-status">
-        <span class="status-dot"></span> Engine ready (Layout Mock Mode)
+col_hdr1, col_hdr2, col_hdr3 = st.columns([1.2, 1.5, 1.2])
+with col_hdr1:
+    st.markdown("""
+    <div class="engine-status" style="padding-top: 6px;">
+        <span class="status-dot"></span> Engine ready (Mock Mode)
     </div>
-    <div class="model-badge">
+    """, unsafe_allow_html=True)
+with col_hdr2:
+    st.selectbox(
+        "Application Scope",
+        APP_OPTIONS,
+        key="selected_app",
+        format_func=lambda a: f"🎯 Scope: {a}",
+        label_visibility="collapsed",
+        help="Scope every answer to a specific application context."
+    )
+with col_hdr3:
+    st.markdown("""
+    <div class="model-badge" style="justify-content: flex-end; margin-top: 4px;">
         ⚙️ Cognizant in-house model
     </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # Empty-chat landing page logo layout
 if not st.session_state["messages"]:
