@@ -968,21 +968,27 @@ if st.session_state.get("current_page") == "manage_kb":
             st.write("**Incremental Update**")
             st.caption("reindex only new files")
             if st.button("⚡ Incremental Update", use_container_width=True, type="secondary"):
-                with st.status("⚡ Updating Knowledge Base incrementally...", expanded=True) as status:
-                    engine.process_knowledge_base(force_reindex=False, incremental=True, chunking_mode=chunking_mode)
-                    st.session_state["reindex_required"] = False
-                    status.update(label="✅ Incremental Update Complete!", state="complete", expanded=False)
-                    st.rerun()
+                progress_bar = st.progress(0.0, text="⚡ Starting Incremental Update...")
+                def _update_progress(pct, msg):
+                    progress_bar.progress(pct, text=f"⚡ {int(pct*100)}% - {msg}")
+                engine.process_knowledge_base(force_reindex=False, incremental=True, chunking_mode=chunking_mode, progress_callback=_update_progress)
+                st.session_state["reindex_required"] = False
+                st.success("✅ Incremental Update Complete!")
+                time.sleep(1)
+                st.rerun()
                     
         with col_idx2:
             st.write("**Complete Re-Index**")
             st.caption("reindex every single file (this will take much more time)")
             if st.button("🏗️ Complete Re-Index", use_container_width=True, type="primary"):
-                with st.status("🏗️ Rebuilding Knowledge Base completely...", expanded=True) as status:
-                    engine.process_knowledge_base(force_reindex=True, incremental=False, chunking_mode=chunking_mode)
-                    st.session_state["reindex_required"] = False
-                    status.update(label="✅ Re-indexed Successfully!", state="complete", expanded=False)
-                    st.rerun()
+                progress_bar = st.progress(0.0, text="🏗️ Starting Complete Re-Index...")
+                def _update_progress(pct, msg):
+                    progress_bar.progress(pct, text=f"🏗️ {int(pct*100)}% - {msg}")
+                engine.process_knowledge_base(force_reindex=True, incremental=False, chunking_mode=chunking_mode, progress_callback=_update_progress)
+                st.session_state["reindex_required"] = False
+                st.success("✅ Complete Re-Index Successful!")
+                time.sleep(1)
+                st.rerun()
                 
     with col_right:
         st.subheader("🔍 Knowledge Base Directory")

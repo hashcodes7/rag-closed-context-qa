@@ -494,10 +494,19 @@ class RAGEngine:
         self.cross_encoder = CrossEncoder(self.cross_encoder_model_name)
         print("[+] Models loaded.")
 
-    def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False, chunking_mode="semantic", incremental=True):
+    def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False, chunking_mode="semantic", incremental=True, progress_callback=None):
         import json
         registry_file = "file_registry.json"
         valid_extensions = (".txt", ".pdf", ".docx", ".html", ".htm", ".xlsx", ".xlsm")
+
+        def notify_progress(pct, text):
+            if progress_callback:
+                try:
+                    progress_callback(min(1.0, max(0.0, float(pct))), text)
+                except Exception:
+                    pass
+
+        notify_progress(0.02, "Initializing indexing process...")
 
         # helper function to load registry
         def load_registry():
@@ -522,6 +531,7 @@ class RAGEngine:
 
         if do_incremental:
             print("[*] Running Incremental Update...")
+            notify_progress(0.05, "Loading existing vector cache and index...")
             try:
                 data = torch.load(cache_file, weights_only=False)
                 self.chunks = data.get("chunks", [])
@@ -532,6 +542,7 @@ class RAGEngine:
                 embeddings_np = data.get("embeddings_np", None)
                 if embeddings_np is None and len(self.chunks) > 0:
                     print("[*] Upgrading old cache file: generating embeddings for existing chunks...")
+                    notify_progress(0.08, "Upgrading cache: generating embeddings...")
                     chunk_texts = [item["text"] for item in self.chunks]
                     embeddings_np = self.embedder.encode(chunk_texts, convert_to_numpy=True).astype("float32")
                     faiss.normalize_L2(embeddings_np)
@@ -563,6 +574,7 @@ class RAGEngine:
                 do_incremental = False
 
         if do_incremental:
+            notify_progress(0.12, "Scanning knowledge base for modified or new files...")
             # 1. Load registry or bootstrap it
             registry = load_registry()
             
@@ -601,8 +613,10 @@ class RAGEngine:
 
             if not new_or_modified and not deleted_files:
                 print("[+] Knowledge base is up to date. No files changed.")
+                notify_progress(0.90, "Building BM25 keyword index...")
                 tokenized_corpus = [tokenize(c["text"]) for c in self.chunks]
                 self.bm25_index = SimpleBM25(tokenized_corpus)
+                notify_progress(1.0, "Knowledge base is already up to date!")
                 return
 
             print(f"[*] Incremental status: {len(new_or_modified)} new/modified, {len(deleted_files)} deleted.")
@@ -645,7 +659,11 @@ class RAGEngine:
                 except Exception:
                     pass
 
-            for relpath in new_or_modified:
+            total_inc_files = len(new_or_modified)
+            for file_idx, relpath in enumerate(new_or_modified):
+                pct = 0.15 + ((file_idx + 1) / max(1, total_inc_files)) * 0.50
+                notify_progress(pct, f"Processing file ({file_idx+1}/{total_inc_files}): {relpath}")
+
                 full_path = os.path.join(folder, relpath)
                 if not os.path.exists(full_path):
                     continue
@@ -688,6 +706,7 @@ class RAGEngine:
 
             # 5. Embed new chunks and merge with remaining ones
             if new_chunks_added:
+                notify_progress(0.70, f"Generating vector embeddings for {len(new_chunks_added)} new chunks...")
                 new_texts = [item["text"] for item in new_chunks_added]
                 new_embeds = self.embedder.encode(new_texts, convert_to_numpy=True).astype("float32")
                 faiss.normalize_L2(new_embeds)
@@ -708,11 +727,13 @@ class RAGEngine:
 
             # 6. Rebuild and save FAISS and cache
             if embeddings_np.shape[0] > 0:
+                notify_progress(0.85, "Rebuilding FAISS HNSW index...")
                 dim = embeddings_np.shape[1]
                 self.faiss_index = faiss.IndexHNSWFlat(dim, 32, faiss.METRIC_INNER_PRODUCT)
                 self.faiss_index.hnsw.efConstruction = 200
                 self.faiss_index.add(embeddings_np)
                 faiss.write_index(self.faiss_index, index_file)
+                notify_progress(0.92, "Saving vector cache to disk...")
                 torch.save({
                     "chunks": self.chunks, 
                     "parent_chunks": self.parent_chunks,
@@ -730,6 +751,7 @@ class RAGEngine:
         else:
             # Complete Reindex Flow
             print(f"[*] Processing files using {chunking_mode} chunking (Complete Re-Index)...")
+            notify_progress(0.05, "Preparing full re-index environment...")
             
             # Wipe files
             if os.path.exists(cache_file): os.remove(cache_file)
@@ -743,48 +765,52 @@ class RAGEngine:
             parent_id_counter = 0
             registry = {}
 
+            all_files = []
             for root, dirs, files in os.walk(folder):
                 for filename in files:
-                    if not filename.lower().endswith(valid_extensions):
-                        print(f"[*] Skipping {filename}: unsupported extension")
-                        continue
+                    if filename.lower().endswith(valid_extensions):
+                        all_files.append(os.path.join(root, filename))
 
-                    path = os.path.join(root, filename)
-                    relpath = os.path.relpath(path, folder).replace('\\', '/')
-                    parts = relpath.split('/')
-                    namespace = parts[0] if len(parts) > 1 else (parts[0] if parts else 'root')
+            total_files = len(all_files)
+            for file_idx, path in enumerate(all_files):
+                relpath = os.path.relpath(path, folder).replace('\\', '/')
+                pct = 0.05 + ((file_idx + 1) / max(1, total_files)) * 0.55
+                notify_progress(pct, f"Extracting & chunking ({file_idx+1}/{total_files}): {relpath}")
 
-                    raw_text, meta = extract_metadata_and_text(path)
-                    if not raw_text.strip():
-                        print(f"[!] Skipping {relpath}: no text extracted")
-                        continue
+                parts = relpath.split('/')
+                namespace = parts[0] if len(parts) > 1 else (parts[0] if parts else 'root')
 
-                    print(f"[+] Processing {relpath} (namespace={namespace})...")
-                    metadata_header = format_metadata_header(meta)
-                    text = metadata_header + raw_text
-                    
-                    if chunking_mode == "semantic":
-                        parents = semantic_chunk_text(text, self.embedder)
-                    else:
-                        parents = recursive_chunk_text(text, chunk_size=1500)
+                raw_text, meta = extract_metadata_and_text(path)
+                if not raw_text.strip():
+                    print(f"[!] Skipping {relpath}: no text extracted")
+                    continue
 
-                    for p_text in parents:
-                        p_id = f"p_{parent_id_counter}"
-                        self.parent_chunks[p_id] = p_text
-                        parent_id_counter += 1
+                print(f"[+] Processing {relpath} (namespace={namespace})...")
+                metadata_header = format_metadata_header(meta)
+                text = metadata_header + raw_text
+                
+                if chunking_mode == "semantic":
+                    parents = semantic_chunk_text(text, self.embedder)
+                else:
+                    parents = recursive_chunk_text(text, chunk_size=1500)
 
-                        children = recursive_chunk_text(p_text, chunk_size=400, overlap=50)
-                        for i, c_text in enumerate(children):
-                            self.chunks.append({
-                                "source": relpath,
-                                "chunk_id": i,
-                                "text": c_text,
-                                "parent_id": p_id,
-                                "namespace": namespace,
-                                "metadata": meta
-                            })
+                for p_text in parents:
+                    p_id = f"p_{parent_id_counter}"
+                    self.parent_chunks[p_id] = p_text
+                    parent_id_counter += 1
 
-                    registry[relpath] = os.path.getmtime(path)
+                    children = recursive_chunk_text(p_text, chunk_size=400, overlap=50)
+                    for i, c_text in enumerate(children):
+                        self.chunks.append({
+                            "source": relpath,
+                            "chunk_id": i,
+                            "text": c_text,
+                            "parent_id": p_id,
+                            "namespace": namespace,
+                            "metadata": meta
+                        })
+
+                registry[relpath] = os.path.getmtime(path)
 
             chunk_texts = [item["text"] for item in self.chunks]
 
@@ -792,15 +818,20 @@ class RAGEngine:
                 print("[!] No text chunks were extracted from knowledge sources. Skipping index creation.")
                 self.faiss_index = None
                 self.bm25_index = SimpleBM25([])
+                notify_progress(1.0, "Knowledge base is empty.")
                 return
 
+            notify_progress(0.65, f"Generating vector embeddings for {len(chunk_texts)} chunks...")
             embeddings_np = self.embedder.encode(chunk_texts, convert_to_numpy=True).astype("float32")
             faiss.normalize_L2(embeddings_np)
             dim = embeddings_np.shape[1]
+            
+            notify_progress(0.85, "Constructing FAISS HNSW index...")
             self.faiss_index = faiss.IndexHNSWFlat(dim, 32, faiss.METRIC_INNER_PRODUCT)
             self.faiss_index.hnsw.efConstruction = 200
             self.faiss_index.add(embeddings_np)
             
+            notify_progress(0.92, "Saving vector cache & file registry...")
             torch.save({
                 "chunks": self.chunks, 
                 "parent_chunks": self.parent_chunks,
@@ -810,8 +841,10 @@ class RAGEngine:
             save_registry(registry)
             print("[+] Knowledge base completely indexed.")
 
+        notify_progress(0.96, "Building BM25 keyword index...")
         tokenized_corpus = [tokenize(c["text"]) for c in self.chunks]
         self.bm25_index = SimpleBM25(tokenized_corpus)
+        notify_progress(1.0, f"Indexing Complete! Total chunks: {len(self.chunks)}.")
 
     def generate_hypothetical_answer(self, question):
         """Generates a brief hypothetical answer to improve retrieval."""
