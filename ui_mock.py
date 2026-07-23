@@ -231,14 +231,16 @@ div[data-testid="stBottom"] > div {
     align-items: stretch !important;
 }
 
-/* Sidebar Application Scope Selectbox Styling */
-.st-key-selected_app div[data-baseweb="select"] > div {
-    border-radius: 10px !important;
+/* Sticky top header pinning the Application Scope and status on main panel */
+.st-key-header_container {
+    position: sticky !important;
+    top: 0px !important;
     background-color: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-}
-.st-key-selected_app div[data-baseweb="select"] > div:hover {
-    border-color: #94a3b8 !important;
+    z-index: 999 !important;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    margin-bottom: 16px !important;
 }
 
 /* Ensure BaseWeb dropdown menu pops up above fixed elements */
@@ -531,28 +533,29 @@ if "messages" not in st.session_state:
     st.session_state["messages"] = []
 
 # --- HEADER & STATUS BANNERS ---
-col_hdr1, col_hdr2, col_hdr3 = st.columns([1.2, 1.5, 1.2])
-with col_hdr1:
-    st.markdown("""
-    <div class="engine-status" style="padding-top: 6px;">
-        <span class="status-dot"></span> Engine ready (Mock Mode)
-    </div>
-    """, unsafe_allow_html=True)
-with col_hdr2:
-    st.selectbox(
-        "Application Scope",
-        APP_OPTIONS,
-        key="selected_app",
-        format_func=lambda a: f"🎯 Scope: {a}",
-        label_visibility="collapsed",
-        help="Scope every answer to a specific application context."
-    )
-with col_hdr3:
-    st.markdown("""
-    <div class="model-badge" style="justify-content: flex-end; margin-top: 4px;">
-        ⚙️ Cognizant in-house model
-    </div>
-    """, unsafe_allow_html=True)
+with st.container(key="header_container"):
+    col_hdr1, col_hdr2, col_hdr3 = st.columns([1.2, 1.5, 1.2])
+    with col_hdr1:
+        st.markdown("""
+        <div class="engine-status" style="padding-top: 6px;">
+            <span class="status-dot"></span> Engine ready (Mock Mode)
+        </div>
+        """, unsafe_allow_html=True)
+    with col_hdr2:
+        st.selectbox(
+            "Application Scope",
+            APP_OPTIONS,
+            key="selected_app",
+            format_func=lambda a: f"🎯 Scope: {a}",
+            label_visibility="collapsed",
+            help="Scope every answer to a specific application context."
+        )
+    with col_hdr3:
+        st.markdown("""
+        <div class="model-badge" style="justify-content: flex-end; margin-top: 4px;">
+            ⚙️ Cognizant in-house model
+        </div>
+        """, unsafe_allow_html=True)
 
 # Empty-chat landing page logo layout
 if not st.session_state["messages"]:
