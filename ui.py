@@ -150,6 +150,7 @@ html, body, [class*="css"], .stApp {
 }
 
 .block-container {
+    padding-top: 5.5rem !important;
     padding-bottom: 3.5rem !important;
 }
 
@@ -458,19 +459,22 @@ div[data-testid="stSidebarUserContent"] {
     font-size: 14px;
 }
 
-/* Sticky top header pinning the Application Scope and status on main panel */
-div[data-testid="stElementContainer"]:has(.st-key-header_container),
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-header_container),
-div[data-testid="stVerticalBlock"]:has(.st-key-header_container) > div:first-child,
+/* Fixed top header pinning the Application Scope and status on main panel */
 .st-key-header_container {
-    position: sticky !important;
+    position: fixed !important;
     top: 0px !important;
+    left: 21rem !important;
+    right: 0px !important;
+    height: 58px !important;
     background-color: #ffffff !important;
-    z-index: 9999 !important;
-    padding-top: 6px !important;
-    padding-bottom: 6px !important;
+    z-index: 99999 !important;
+    padding: 8px 2rem !important;
     border-bottom: 1px solid #e2e8f0 !important;
-    margin-bottom: 16px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+section[data-testid="stSidebar"][aria-expanded="false"] ~ section .st-key-header_container {
+    left: 0px !important;
 }
 
 .engine-status {
