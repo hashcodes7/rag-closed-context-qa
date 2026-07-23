@@ -1,7 +1,7 @@
 import streamlit as st
 import time
 import os
-from core import RAGEngine, extract_text_from_file
+from core import RAGEngine, extract_text_from_file, is_small_talk
 import database as db
 
 # Initialize database
@@ -1327,59 +1327,15 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
     response_placeholder = st.empty()
 
     with st.status("⚙️ Response Details", expanded=False) as status:
-        # 1. Retrieval
         print(f"\n[SYSTEM] Received User Query: {prompt}", flush=True)
-        st.write(f"Searching index {'(Hybrid+' if use_hybrid else '('}{'HyDE+' if use_hyde else ''}{'Rerank)' if use_rerank else ')'}...")
-        if allowed_namespaces:
-            st.write(f"🎯 Scoped to **{st.session_state['selected_app']}** documents only.")
-            print(f"[SYSTEM] Retrieval scoped to namespaces: {allowed_namespaces}", flush=True)
-        print(f"[SYSTEM] Executing Retrieval Pipeline (Hybrid={use_hybrid}, HyDE={use_hyde}, Rerank={use_rerank})", flush=True)
-        top_chunks, metrics = engine.retrieve(
-            prompt,
-            k=3,
-            use_hybrid=use_hybrid,
-            use_hyde=use_hyde,
-            use_rerank=use_rerank,
-            use_parent=use_parent,
-            allowed_namespaces=allowed_namespaces
-        )
+        is_greeting = is_small_talk(prompt)
         
-        if not top_chunks:
-            if allowed_namespaces:
-                response = f"I think this info isn't yet added to my knowledge base for {st.session_state['selected_app']}."
-            else:
-                response = "Not found."
-            sources_meta = []
-            response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{response}</div></div></div>', unsafe_allow_html=True)
-            gen_time = 0
-        else:
-            st.write(f"Found {len(top_chunks)} relevant segments.")
+        if is_greeting:
+            st.write("💬 Greeting / Small Talk detected. Responding conversationally...")
+            top_chunks = []
+            metrics = {}
             context = ""
             sources_meta = []
-            for i, c in enumerate(top_chunks):
-                meta = c.get("metadata", {})
-                meta_header = ""
-                if meta:
-                    meta_fields = []
-                    if meta.get("author"): meta_fields.append(f"Author: {meta['author']}")
-                    if meta.get("created_time"): meta_fields.append(f"Created: {meta['created_time']}")
-                    if meta.get("modified_time"): meta_fields.append(f"Modified: {meta['modified_time']}")
-                    if meta_fields:
-                        meta_header = " | " + " | ".join(meta_fields)
-                context += f"\n[Source {i+1}: {c['source']}{meta_header}]\n{c['text']}\n"
-                
-                sources_meta.append({
-                    "id": i+1, 
-                    "source": c["source"], 
-                    "text": c.get("retrieval_text", c["text"]),
-                    "score": c.get("score", 0.95 - (i * 0.05)),
-                    "metadata": meta
-                })
-            
-            # 2. Generation
-            st.write("Synthesizing answer...")
-            print(f"[SYSTEM] Generation starting...", flush=True)
-            full_response = ""
             
             chat_history = []
             all_messages = st.session_state["messages"][:-1]
@@ -1392,27 +1348,110 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
 
             streamer = engine.generate_stream(
                 prompt,
-                context,
-                chat_history,
+                context="",
+                history=chat_history,
                 api_key=st.session_state.get("google_api_key"),
-                app_prompt=app_prompt
+                app_prompt=app_prompt,
+                is_small_talk_mode=True
             )
 
             start_time = time.time()
+            full_response = ""
             for new_text in streamer:
                 full_response += new_text
                 display_response = strip_fallback_prefix(full_response)
-                response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{display_response}▌</div></div></div>', unsafe_allow_html=True)
+                response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; conversational</span></div><div class="assistant-card"><div class="assistant-body">{display_response}▌</div></div></div>', unsafe_allow_html=True)
 
             gen_time = time.time() - start_time
-            print(f"[SYSTEM] Generation finished in {gen_time:.2f}s", flush=True)
-
-            # Strip the fallback phrase if the model emitted it AND then answered anyway
             full_response = strip_fallback_prefix(full_response)
-
-            # Final output with citations
-            response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{full_response}</div>{format_sources_html(sources_meta)}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
+            response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; conversational</span></div><div class="assistant-card"><div class="assistant-body">{full_response}</div></div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span></div></div>', unsafe_allow_html=True)
             response = full_response
+        else:
+            # 1. Retrieval
+            st.write(f"Searching index {'(Hybrid+' if use_hybrid else '('}{'HyDE+' if use_hyde else ''}{'Rerank)' if use_rerank else ')'}...")
+            if allowed_namespaces:
+                st.write(f"🎯 Scoped to **{st.session_state['selected_app']}** documents only.")
+                print(f"[SYSTEM] Retrieval scoped to namespaces: {allowed_namespaces}", flush=True)
+            print(f"[SYSTEM] Executing Retrieval Pipeline (Hybrid={use_hybrid}, HyDE={use_hyde}, Rerank={use_rerank})", flush=True)
+            top_chunks, metrics = engine.retrieve(
+                prompt,
+                k=3,
+                use_hybrid=use_hybrid,
+                use_hyde=use_hyde,
+                use_rerank=use_rerank,
+                use_parent=use_parent,
+                allowed_namespaces=allowed_namespaces
+            )
+            
+            if not top_chunks:
+                if allowed_namespaces:
+                    response = f"I think this info isn't yet added to my knowledge base for {st.session_state['selected_app']}."
+                else:
+                    response = "Not found."
+                sources_meta = []
+                response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{response}</div></div></div>', unsafe_allow_html=True)
+                gen_time = 0
+            else:
+                st.write(f"Found {len(top_chunks)} relevant segments.")
+                context = ""
+                sources_meta = []
+                for i, c in enumerate(top_chunks):
+                    meta = c.get("metadata", {})
+                    meta_header = ""
+                    if meta:
+                        meta_fields = []
+                        if meta.get("author"): meta_fields.append(f"Author: {meta['author']}")
+                        if meta.get("created_time"): meta_fields.append(f"Created: {meta['created_time']}")
+                        if meta.get("modified_time"): meta_fields.append(f"Modified: {meta['modified_time']}")
+                        if meta_fields:
+                            meta_header = " | " + " | ".join(meta_fields)
+                    context += f"\n[Source {i+1}: {c['source']}{meta_header}]\n{c['text']}\n"
+                    
+                    sources_meta.append({
+                        "id": i+1, 
+                        "source": c["source"], 
+                        "text": c.get("retrieval_text", c["text"]),
+                        "score": c.get("score", 0.95 - (i * 0.05)),
+                        "metadata": meta
+                    })
+                
+                # 2. Generation
+                st.write("Synthesizing answer...")
+                print(f"[SYSTEM] Generation starting...", flush=True)
+                full_response = ""
+                
+                chat_history = []
+                all_messages = st.session_state["messages"][:-1]
+                for idx, m in enumerate(all_messages):
+                    if m["role"] == "user":
+                        bot_content = ""
+                        if idx + 1 < len(all_messages) and all_messages[idx + 1]["role"] == "assistant":
+                            bot_content = all_messages[idx + 1]["content"]
+                        chat_history.append({"user": m["content"], "bot": bot_content})
+
+                streamer = engine.generate_stream(
+                    prompt,
+                    context,
+                    chat_history,
+                    api_key=st.session_state.get("google_api_key"),
+                    app_prompt=app_prompt
+                )
+
+                start_time = time.time()
+                for new_text in streamer:
+                    full_response += new_text
+                    display_response = strip_fallback_prefix(full_response)
+                    response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{display_response}▌</div></div></div>', unsafe_allow_html=True)
+
+                gen_time = time.time() - start_time
+                print(f"[SYSTEM] Generation finished in {gen_time:.2f}s", flush=True)
+
+                # Strip the fallback phrase if the model emitted it AND then answered anyway
+                full_response = strip_fallback_prefix(full_response)
+
+                # Final output with citations
+                response_placeholder.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{full_response}</div>{format_sources_html(sources_meta)}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
+                response = full_response
             
         # Show Telemetry inside the status block
         st.divider()

@@ -399,8 +399,28 @@ def reciprocal_rank_fusion(results_list, k=60):
     for results in results_list:
         for rank, idx in enumerate(results):
             fused_scores[idx] = fused_scores.get(idx, 0) + 1 / (k + rank)
-    sorted_indices = sorted(fused_scores.keys(), key=lambda x: fused_scores[x], reverse=True)
-    return sorted_indices
+def is_small_talk(query):
+    """Detect if a user query is a simple greeting, salutation, or casual small talk."""
+    import re
+    q = query.strip().lower()
+    clean = re.sub(r'[^\w\s]', '', q).strip()
+    words = clean.split()
+    
+    greetings = {
+        "hi", "hello", "hey", "heya", "greetings", "good morning", "good afternoon",
+        "good evening", "howdy", "hola", "sup", "whats up", "whatsup",
+        "how are you", "how are you doing", "hows it going", "how is it going",
+        "who are you", "what can you do", "what are you", "help", "thanks",
+        "thank you", "thankyou", "bye", "goodbye", "good day", "namaste"
+    }
+    
+    if len(words) <= 5:
+        if clean in greetings:
+            return True
+        for g in greetings:
+            if clean.startswith(g) or clean.endswith(g):
+                return True
+    return False
 
 class RAGEngine:
     def __init__(self, model_name, embed_model_name, cross_encoder_model_name):
@@ -965,7 +985,7 @@ class RAGEngine:
         metrics["rerank_time"] = time.time() - start
         return final_results, metrics
 
-    def generate_stream(self, question, context, history, max_tokens=512, api_key=None, app_prompt=None):
+    def generate_stream(self, question, context, history, max_tokens=512, api_key=None, app_prompt=None, is_small_talk_mode=False):
         # Application-scoping block. When the user has picked a specific application
         # (e.g. TrackWise, ThingWorx), this is prepended to the system prompt so that
         # ambiguous questions ("how is a user created") are answered strictly in the
@@ -1053,22 +1073,32 @@ class RAGEngine:
                         break
                 context = truncated_context
 
-        system_msg = app_section + (
-            "IDENTITY AND CREATOR RULES:\n"
-            "- Your name is CognIQ.\n"
-            "- You are a local, secure closed-context corporate RAG assistant.\n"
-            "- You were created and built by Cognizant.\n"
-            "- You were specifically designed and developed for Fresenius Medical Care (FMC).\n"
-            "- If the user asks about who you are, your creator, your developer, your name, your purpose, or the company you work for, you must answer immediately and professionally using the above details, bypassing the strict document context rule for these identity questions.\n\n"
-            "GENERAL QA RULES:\n"
-            "- For all other general and technical questions, you must answer using ONLY the provided context below.\n"
-            "- If the context contains relevant information (even if it is an overview, summary, or partial description), use it to provide a helpful, comprehensive, and detailed answer. Describe whatever relevant details are present (such as key areas, contact names, tools, or overview steps).\n"
-            "- Respond in a professional, corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
-            "- You may relate the meanings of words in the question to the context to find the best matching information, but do not add any facts that are not explicitly present in the context.\n"
-            f"<context>\n{context}\n</context>\n"
-            "- Only if the provided context is completely unrelated or has zero connection to the user's question, reply exactly with: \"I think this info isn't yet added to my knowledge base.\" Do not add any explanations or extra words if you output this fallback phrase.\n"
-            "- Ensure that your answers are complete and do not cut off mid-sentence. If the answer is long, provide it in full and do not truncate it. Always use all relevant information from the context to provide the most comprehensive answer possible."
-        )
+        if is_small_talk_mode:
+            system_msg = app_section + (
+                "IDENTITY AND GREETING RULES:\n"
+                "- Your name is CognIQ.\n"
+                "- You are an internal corporate support AI assistant developed by Cognizant for Fresenius Medical Care (FMC).\n"
+                "- The user is greeting you or starting a casual conversation (e.g., 'hi', 'hello', 'how are you', 'good morning', 'thanks').\n"
+                "- Respond in a warm, polite, concise, and professional corporate tone (1-2 sentences maximum).\n"
+                "- MANDATORY CONVERSATIONAL PIVOT: At the very end of your response, ALWAYS ask how you can help them today with their corporate support questions or specific applications (such as TrackWise, ThingWorx, Polarion, or Windchill GPDM), guiding them directly back to asking technical/support questions instead of continuing casual small talk."
+            )
+        else:
+            system_msg = app_section + (
+                "IDENTITY AND CREATOR RULES:\n"
+                "- Your name is CognIQ.\n"
+                "- You are a local, secure closed-context corporate RAG assistant.\n"
+                "- You were created and built by Cognizant.\n"
+                "- You were specifically designed and developed for Fresenius Medical Care (FMC).\n"
+                "- If the user asks about who you are, your creator, your developer, your name, your purpose, or the company you work for, you must answer immediately and professionally using the above details, bypassing the strict document context rule for these identity questions.\n\n"
+                "GENERAL QA RULES:\n"
+                "- For all other general and technical questions, you must answer using ONLY the provided context below.\n"
+                "- If the context contains relevant information (even if it is an overview, summary, or partial description), use it to provide a helpful, comprehensive, and detailed answer. Describe whatever relevant details are present (such as key areas, contact names, tools, or overview steps).\n"
+                "- Respond in a professional, corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
+                "- You may relate the meanings of words in the question to the context to find the best matching information, but do not add any facts that are not explicitly present in the context.\n"
+                f"<context>\n{context}\n</context>\n"
+                "- Only if the provided context is completely unrelated or has zero connection to the user's question, reply exactly with: \"I think this info isn't yet added to my knowledge base.\" Do not add any explanations or extra words if you output this fallback phrase.\n"
+                "- Ensure that your answers are complete and do not cut off mid-sentence. If the answer is long, provide it in full and do not truncate it. Always use all relevant information from the context to provide the most comprehensive answer possible."
+            )
         
         if self.model_name.startswith("gemini-"):
             import google.generativeai as genai
