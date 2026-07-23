@@ -238,16 +238,32 @@ div[data-testid="stBottom"] > div {
     top: 0px !important;
     left: 21rem !important;
     right: 0px !important;
-    height: 58px !important;
+    height: 60px !important;
     background-color: #ffffff !important;
     z-index: 99999 !important;
-    padding: 8px 2rem !important;
+    padding: 10px 3.5rem 10px 2.5rem !important;
     border-bottom: 1px solid #e2e8f0 !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
 }
 
 section[data-testid="stSidebar"][aria-expanded="false"] ~ section .st-key-header_container {
     left: 0px !important;
+}
+
+/* Compact, right-aligned Application Scope Selectbox */
+.st-key-selected_app {
+    max-width: 280px !important;
+    margin-left: auto !important;
+}
+.st-key-selected_app div[data-baseweb="select"] > div {
+    border-radius: 12px !important;
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    height: 38px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+.st-key-selected_app div[data-baseweb="select"] > div:hover {
+    border-color: #94a3b8 !important;
 }
 
 /* Ensure BaseWeb dropdown menu pops up above fixed elements */
