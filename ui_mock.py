@@ -232,11 +232,14 @@ div[data-testid="stBottom"] > div {
 }
 
 /* Sticky top header pinning the Application Scope and status on main panel */
+div[data-testid="stElementContainer"]:has(.st-key-header_container),
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-header_container),
+div[data-testid="stVerticalBlock"]:has(.st-key-header_container) > div:first-child,
 .st-key-header_container {
     position: sticky !important;
     top: 0px !important;
     background-color: #ffffff !important;
-    z-index: 999 !important;
+    z-index: 9999 !important;
     padding-top: 6px !important;
     padding-bottom: 6px !important;
     border-bottom: 1px solid #e2e8f0 !important;
