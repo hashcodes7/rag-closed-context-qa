@@ -1318,7 +1318,12 @@ for msg in st.session_state["messages"]:
         st.markdown(f'<div class="assistant-container"><div class="assistant-header"><span class="assistant-logo">🤖</span><span class="assistant-name">CognIQ</span><span class="assistant-tag">&middot; grounded answer</span></div><div class="assistant-card"><div class="assistant-body">{msg["content"]}</div>{sources_html}</div><div class="utility-row"><span class="utility-item">📋 Copy</span><span class="utility-item">👍 Helpful</span><span class="utility-item">🔗 Open ticket</span></div></div>', unsafe_allow_html=True)
 
 # --- APPLICATION SCOPE SELECTOR & CHAT INPUT (FIXED AT BOTTOM) ---
-with st.bottom:
+st_bottom = getattr(st, "bottom", getattr(st, "_bottom", None))
+if st_bottom is None:
+    import contextlib
+    st_bottom = contextlib.nullcontext()
+
+with st_bottom:
     st.markdown('<div class="app-pill-row">', unsafe_allow_html=True)
     st.selectbox(
         "Application scope",

@@ -597,7 +597,12 @@ for msg in st.session_state["messages"]:
 # --- APPLICATION SCOPE SELECTOR & CHAT INPUT (FIXED AT BOTTOM) ---
 chat_placeholder = "Ask about a ticket, error, or how-to..."
 
-with st.bottom:
+st_bottom = getattr(st, "bottom", getattr(st, "_bottom", None))
+if st_bottom is None:
+    import contextlib
+    st_bottom = contextlib.nullcontext()
+
+with st_bottom:
     st.markdown('<div class="app-pill-row">', unsafe_allow_html=True)
     st.selectbox(
         "Application scope",
