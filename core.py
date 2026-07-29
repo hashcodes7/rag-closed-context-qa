@@ -1075,12 +1075,15 @@ class RAGEngine:
                 "- If the user asks about who you are, your creator, your developer, your name, your purpose, or the company you work for, you must answer immediately and professionally using the above details, bypassing the strict document context rule for these identity questions.\n\n"
                 "GENERAL QA RULES:\n"
                 "- For all other general and technical questions, you must answer using ONLY the provided context below.\n"
-                "- If the context contains relevant information (even if it is an overview, summary, or partial description), use it to provide a helpful, comprehensive, and detailed answer. Describe whatever relevant details are present (such as key areas, contact names, tools, or overview steps).\n"
+                "- COMPREHENSIVE & DETAILED EXPLANATIONS: Provide thorough, in-depth, structured, and exhaustive answers using all relevant facts, steps, numbers, contacts, guidelines, and nuances present in the context. Avoid short or brief summaries; elaborate on all available aspects to give the user a complete, detailed response.\n"
+                "- MULTI-SOURCE & MULTI-VERSION COMPARISONS: If different files or chunks contain varying procedures, methods, or versions, structure your answer explicitly:\n"
+                "  * Compare using source references: e.g., \"According to [File A], ... but according to [File B], ...\"\n"
+                "  * Or enumerate options clearly: e.g., \"It appears there are multiple ways/versions to accomplish this: 1. ... 2. ...\"\n"
                 "- Respond in a professional, corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
                 "- You may relate the meanings of words in the question to the context to find the best matching information, but do not add any facts that are not explicitly present in the context.\n"
                 "<context>\n\n</context>\n"
                 "- Only if the provided context is completely unrelated or has zero connection to the user's question, reply exactly with: \"I think this info isn't yet added to my knowledge base.\" Do not add any explanations or extra words if you output this fallback phrase.\n"
-                "- Ensure that your answers are complete and do not cut off mid-sentence. If the answer is long, provide it in full and do not truncate it. Always use all relevant information from the context to provide the most comprehensive answer possible."
+                "- Ensure that your answers are complete and do not cut off mid-sentence. Always use all relevant information from the context to provide the most detailed and comprehensive answer possible."
             )
             
             skeleton_messages = [{"role": "system", "content": system_template}]
@@ -1146,12 +1149,15 @@ class RAGEngine:
                 "- If the user asks about who you are, your creator, your developer, your name, your purpose, or the company you work for, you must answer immediately and professionally using the above details, bypassing the strict document context rule for these identity questions.\n\n"
                 "GENERAL QA RULES:\n"
                 "- For all other general and technical questions, you must answer using ONLY the provided context below.\n"
-                "- If the context contains relevant information (even if it is an overview, summary, or partial description), use it to provide a helpful, comprehensive, and detailed answer. Describe whatever relevant details are present (such as key areas, contact names, tools, or overview steps).\n"
+                "- COMPREHENSIVE & DETAILED EXPLANATIONS: Provide thorough, in-depth, structured, and exhaustive answers using all relevant facts, steps, numbers, contacts, guidelines, and nuances present in the context. Avoid short or brief summaries; elaborate on all available aspects to give the user a complete, detailed response.\n"
+                "- MULTI-SOURCE & MULTI-VERSION COMPARISONS: If different files or chunks contain varying procedures, methods, or versions, structure your answer explicitly:\n"
+                "  * Compare using source references: e.g., \"According to [File A], ... but according to [File B], ...\"\n"
+                "  * Or enumerate options clearly: e.g., \"It appears there are multiple ways/versions to accomplish this: 1. ... 2. ...\"\n"
                 "- Respond in a professional, corporate tone appropriate for an internal Fresenius Medical Care assistant.\n"
                 "- You may relate the meanings of words in the question to the context to find the best matching information, but do not add any facts that are not explicitly present in the context.\n"
                 f"<context>\n{context}\n</context>\n"
                 "- Only if the provided context is completely unrelated or has zero connection to the user's question, reply exactly with: \"I think this info isn't yet added to my knowledge base.\" Do not add any explanations or extra words if you output this fallback phrase.\n"
-                "- Ensure that your answers are complete and do not cut off mid-sentence. If the answer is long, provide it in full and do not truncate it. Always use all relevant information from the context to provide the most comprehensive answer possible."
+                "- Ensure that your answers are complete and do not cut off mid-sentence. Always use all relevant information from the context to provide the most detailed and comprehensive answer possible."
             )
         
         if self.model_name.startswith("gemini-"):

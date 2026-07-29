@@ -514,43 +514,59 @@ def format_sources_html(sources):
         return ""
         
     import os
-    chips = []
+    # Group sources by file path to aggregate chunk counts and top scores
+    grouped_sources = {}
     for idx, s in enumerate(sources):
-        meta = {}
         if isinstance(s, dict):
             src_name = s.get("source", "")
             match_score = s.get("score")
             if match_score is None:
                 match_score = 0.95 - (idx * 0.05)
-            match_pct = int(match_score * 100) if match_score <= 1.0 else int(match_score)
             meta = s.get("metadata", {}) or {}
         else:
             src_name = str(s)
-            match_pct = 90 - (idx * 5)
-            
+            match_score = 0.90 - (idx * 0.05)
+            meta = {}
+
+        if not src_name:
+            continue
+
+        if src_name not in grouped_sources:
+            grouped_sources[src_name] = {
+                "source": src_name,
+                "score": match_score,
+                "metadata": meta,
+                "count": 1
+            }
+        else:
+            grouped_sources[src_name]["count"] += 1
+            if match_score > grouped_sources[src_name]["score"]:
+                grouped_sources[src_name]["score"] = match_score
+
+    chips = []
+    for src_name, data in grouped_sources.items():
+        count = data["count"]
+        match_score = data["score"]
+        meta = data["metadata"]
+        match_pct = int(match_score * 100) if match_score <= 1.0 else int(match_score)
+
         is_ticket = src_name.lower().endswith((".xlsx", ".xls")) or "inc" in src_name.lower() or "ticket" in src_name.lower()
         badge_class = "badge-ticket" if is_ticket else "badge-kb"
         badge_text = "Ticket" if is_ticket else "KB"
         
         basename = os.path.basename(src_name)
-        if len(basename) > 50:
-            basename = basename[:47] + "..."
+        if len(basename) > 45:
+            basename = basename[:42] + "..."
             
-        tooltip_parts = [f"Source: {src_name}"]
+        tooltip_parts = [f"Source: {src_name}", f"Retrieved Chunks: {count}"]
         meta_info = ""
         if meta:
-            if meta.get("title"):
-                tooltip_parts.append(f"Title: {meta['title']}")
-            if meta.get("author"):
-                tooltip_parts.append(f"Author: {meta['author']}")
-            if meta.get("creator"):
-                tooltip_parts.append(f"Creator/Editor: {meta['creator']}")
-            if meta.get("created_time"):
-                tooltip_parts.append(f"Created: {meta['created_time']}")
-            if meta.get("modified_time"):
-                tooltip_parts.append(f"Modified: {meta['modified_time']}")
-            if meta.get("file_size_bytes"):
-                tooltip_parts.append(f"Size: {meta['file_size_bytes']/1024:.1f} KB")
+            if meta.get("title"): tooltip_parts.append(f"Title: {meta['title']}")
+            if meta.get("author"): tooltip_parts.append(f"Author: {meta['author']}")
+            if meta.get("creator"): tooltip_parts.append(f"Creator/Editor: {meta['creator']}")
+            if meta.get("created_time"): tooltip_parts.append(f"Created: {meta['created_time']}")
+            if meta.get("modified_time"): tooltip_parts.append(f"Modified: {meta['modified_time']}")
+            if meta.get("file_size_bytes"): tooltip_parts.append(f"Size: {meta['file_size_bytes']/1024:.1f} KB")
                 
             author_info = meta.get("author") or meta.get("creator") or ""
             date_info = meta.get("modified_time") or meta.get("created_time") or ""
@@ -564,8 +580,9 @@ def format_sources_html(sources):
             elif date_info:
                 meta_info = f" ({date_info})"
                 
+        chunk_badge = f' · <span style="opacity: 0.85; font-weight: 600;">{count} chunks</span>' if count > 1 else ""
         tooltip = " | ".join(tooltip_parts)
-        chip_html = f'<div class="source-chip"><span class="badge {badge_class}">{badge_text}</span><span class="source-text" title="{tooltip}">{basename}{meta_info}</span><span class="match-pct">{match_pct}% match</span></div>'
+        chip_html = f'<div class="source-chip"><span class="badge {badge_class}">{badge_text}</span><span class="source-text" title="{tooltip}">{basename}{meta_info}{chunk_badge}</span><span class="match-pct">{match_pct}% match</span></div>'
         chips.append(chip_html)
         
     if not chips:
@@ -1375,7 +1392,7 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
             print(f"[SYSTEM] Executing Retrieval Pipeline (Hybrid={use_hybrid}, HyDE={use_hyde}, Rerank={use_rerank})", flush=True)
             top_chunks, metrics = engine.retrieve(
                 prompt,
-                k=3,
+                k=5,
                 use_hybrid=use_hybrid,
                 use_hyde=use_hyde,
                 use_rerank=use_rerank,
@@ -1433,6 +1450,7 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
                     prompt,
                     context,
                     chat_history,
+                    max_tokens=1024,
                     api_key=st.session_state.get("google_api_key"),
                     app_prompt=app_prompt
                 )
