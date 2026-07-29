@@ -144,129 +144,234 @@ def semantic_chunk_text(text, embedder, threshold=0.5, max_chunk_size=1200):
         
     return chunks
 
+# =====================================================
+# 🧹 MULTI-FORMAT DOCUMENT CLEANER & SANITIZER
+# =====================================================
+
+class DocumentCleaner:
+    """
+    Unified multi-format document cleaner and text sanitizer for RAG pipelines.
+    Extracts, cleans, and context-enriches text from PowerPoint (.pptx), Excel (.xlsx),
+    Word (.docx), PDF (.pdf), HTML (.html), and Text (.txt) files.
+    """
+
+    def clean(self, filepath: str) -> str:
+        if not os.path.exists(filepath):
+            return ""
+        ext = os.path.splitext(filepath)[1].lower()
+        try:
+            if ext in (".xlsx", ".xlsm"):
+                return self.clean_excel(filepath)
+            elif ext in (".pptx", ".ppt"):
+                return self.clean_pptx(filepath)
+            elif ext == ".pdf":
+                return self.clean_pdf(filepath)
+            elif ext == ".docx":
+                return self.clean_docx(filepath)
+            elif ext in (".html", ".htm"):
+                return self.clean_html(filepath)
+            elif ext == ".txt":
+                return self.clean_txt(filepath)
+        except Exception as e:
+            print(f"[!] Error cleaning {filepath}: {e}")
+        return ""
+
+    def clean_excel(self, filepath: str) -> str:
+        try:
+            import openpyxl
+        except ImportError:
+            print("[!] openpyxl is required for Excel parsing. Run `pip install openpyxl`")
+            return ""
+
+        wb = None
+        try:
+            wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+            text_parts = []
+            filename = os.path.basename(filepath)
+
+            for sheet_name in wb.sheetnames:
+                sheet = wb[sheet_name]
+                rows = list(sheet.iter_rows(values_only=True))
+                if not rows:
+                    continue
+
+                # Find the first non-empty header row
+                header_row = None
+                header_idx = 0
+                for idx, r in enumerate(rows):
+                    if any(cell is not None and str(cell).strip() != "" for cell in r):
+                        header_row = r
+                        header_idx = idx
+                        break
+
+                if header_row is None:
+                    continue
+
+                headers = []
+                for col_idx, cell in enumerate(header_row):
+                    if cell is not None and str(cell).strip():
+                        headers.append(str(cell).strip())
+                    else:
+                        headers.append(f"Column_{openpyxl.utils.get_column_letter(col_idx + 1)}")
+
+                sheet_records = []
+                for row_idx, r in enumerate(rows[header_idx + 1:], start=header_idx + 2):
+                    # Skip empty rows
+                    if not any(cell is not None and str(cell).strip() != "" for cell in r):
+                        continue
+
+                    row_kvs = []
+                    for col_idx, cell in enumerate(r):
+                        if col_idx < len(headers):
+                            if cell is None:
+                                continue
+                            val = str(cell).strip()
+                            # Filter out openpyxl error strings or blank values
+                            if not val or val in ("#N/A", "#VALUE!", "#REF!", "#DIV/0!", "#NAME?", "#NULL!", "#NUM!"):
+                                continue
+                            row_kvs.append(f"{headers[col_idx]}: {val}")
+
+                    if row_kvs:
+                        # Clean natural row representation: Year: 2011, Name: Harsh, Sale: 200.
+                        row_str = f"[File: {filename} | Sheet: {sheet_name} | Entry #{row_idx}] " + ", ".join(row_kvs) + "."
+                        sheet_records.append(row_str)
+
+                if sheet_records:
+                    text_parts.append(f"--- Sheet: {sheet_name} ---\n" + "\n".join(sheet_records))
+
+            return "\n\n".join(text_parts)
+        except Exception as e:
+            print(f"[!] Error cleaning Excel file {filepath}: {e}")
+            return ""
+        finally:
+            if wb is not None:
+                wb.close()
+
+    def clean_pptx(self, filepath: str) -> str:
+        try:
+            from pptx import Presentation
+            from pptx.enum.shapes import MSO_SHAPE_TYPE
+        except ImportError:
+            print("[!] python-pptx is required for PowerPoint parsing. Run `pip install python-pptx`")
+            return ""
+
+        def _extract_shape_text(shape):
+            lines = []
+            if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+                for sub_shape in shape.shapes:
+                    lines.extend(_extract_shape_text(sub_shape))
+            elif shape.has_text_frame:
+                for paragraph in shape.text_frame.paragraphs:
+                    p_text = paragraph.text.strip()
+                    if p_text:
+                        lines.append(p_text)
+            elif shape.has_table:
+                for row in shape.table.rows:
+                    row_cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if row_cells:
+                        lines.append(" | ".join(row_cells))
+            return lines
+
+        try:
+            prs = Presentation(filepath)
+            filename = os.path.basename(filepath)
+            text_parts = []
+
+            for slide_num, slide in enumerate(prs.slides, start=1):
+                slide_lines = []
+                for shape in slide.shapes:
+                    slide_lines.extend(_extract_shape_text(shape))
+
+                # Identify slide title if present
+                slide_title = ""
+                if slide.shapes.title and slide.shapes.title.text.strip():
+                    slide_title = slide.shapes.title.text.strip()
+                elif slide_lines:
+                    slide_title = slide_lines[0]
+
+                # Speaker notes
+                if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
+                    notes = slide.notes_slide.notes_text_frame.text.strip()
+                    if notes:
+                        slide_lines.append(f"[Speaker Notes: {notes}]")
+
+                if slide_lines:
+                    header = f"--- Slide {slide_num}: {slide_title} [File: {filename}] ---" if slide_title else f"--- Slide {slide_num} [File: {filename}] ---"
+                    text_parts.append(header + "\n" + "\n".join(slide_lines))
+
+            return "\n\n".join(text_parts)
+        except Exception as e:
+            print(f"[!] Error cleaning PowerPoint file {filepath}: {e}")
+            return ""
+
+    def clean_pdf(self, filepath: str) -> str:
+        try:
+            import fitz
+            doc = fitz.open(filepath)
+            filename = os.path.basename(filepath)
+            pages_text = []
+
+            for page_num, page in enumerate(doc, start=1):
+                raw = page.get_text()
+                if not raw.strip():
+                    continue
+                # Clean hyphenated line-break word splits e.g. "develop-\nment" -> "development"
+                cleaned = raw.replace("-\n", "").replace("\r\n", "\n")
+                import re
+                cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
+                if cleaned:
+                    pages_text.append(f"--- Page {page_num} [File: {filename}] ---\n" + cleaned)
+            doc.close()
+            return "\n\n".join(pages_text)
+        except Exception as e:
+            print(f"[!] Error cleaning PDF file {filepath}: {e}")
+            return ""
+
+    def clean_docx(self, filepath: str) -> str:
+        try:
+            import docx
+            doc = docx.Document(filepath)
+            lines = []
+            for para in doc.paragraphs:
+                txt = para.text.strip()
+                if txt:
+                    lines.append(txt)
+            return "\n".join(lines)
+        except Exception as e:
+            print(f"[!] Error cleaning DOCX file {filepath}: {e}")
+            return ""
+
+    def clean_html(self, filepath: str) -> str:
+        try:
+            from bs4 import BeautifulSoup
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                soup = BeautifulSoup(f.read(), "html.parser")
+                for element in soup(["script", "style", "footer", "nav"]):
+                    element.decompose()
+                return soup.get_text(separator="\n", strip=True)
+        except Exception as e:
+            print(f"[!] Error cleaning HTML file {filepath}: {e}")
+            return ""
+
+    def clean_txt(self, filepath: str) -> str:
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read().strip()
+        except Exception as e:
+            print(f"[!] Error cleaning TXT file {filepath}: {e}")
+            return ""
+
+# Instantiated global DocumentCleaner helper
+document_cleaner = DocumentCleaner()
+
 def extract_text_from_excel(filepath):
-    try:
-        import openpyxl
-    except ImportError:
-        print("[!] openpyxl is required for Excel parsing. Run `pip install openpyxl`")
-        return ""
-        
-    wb = None
-    try:
-        wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
-        text_parts = []
-        for sheet_name in wb.sheetnames:
-            sheet = wb[sheet_name]
-            rows = list(sheet.iter_rows(values_only=True))
-            if not rows:
-                continue
-            
-            # Find the header row (first non-empty row)
-            header_row = None
-            header_idx = 0
-            for idx, r in enumerate(rows):
-                if any(cell is not None for cell in r):
-                    header_row = r
-                    header_idx = idx
-                    break
-            
-            if header_row is None:
-                continue
-            
-            headers = []
-            for col_idx, cell in enumerate(header_row):
-                if cell is not None and str(cell).strip():
-                    headers.append(str(cell).strip())
-                else:
-                    headers.append(f"Column_{openpyxl.utils.get_column_letter(col_idx + 1)}")
-            
-            sheet_text = []
-            for row_idx, r in enumerate(rows[header_idx + 1:], start=header_idx + 2):
-                if not any(cell is not None for cell in r):
-                    continue # Skip empty rows
-                
-                row_parts = []
-                for col_idx, cell in enumerate(r):
-                    if col_idx < len(headers):
-                        val = str(cell).strip() if cell is not None else ""
-                        if val:
-                            row_parts.append(f"{headers[col_idx]}: {val}")
-                
-                if row_parts:
-                    sheet_text.append(f"Sheet: {sheet_name} | Row {row_idx}: " + " | ".join(row_parts))
-            
-            if sheet_text:
-                text_parts.append(f"--- Sheet: {sheet_name} ---\n" + "\n".join(sheet_text))
-                
-        return "\n\n".join(text_parts)
-    except Exception as e:
-        print(f"[!] Error reading Excel file {filepath}: {e}")
-        return ""
-    finally:
-        if wb is not None:
-            wb.close()
+    return document_cleaner.clean_excel(filepath)
 
 def extract_text_from_pptx(filepath):
-    try:
-        from pptx import Presentation
-    except ImportError:
-        print("[!] python-pptx is required for PowerPoint parsing. Run `pip install python-pptx`")
-        return ""
-    
-    try:
-        prs = Presentation(filepath)
-        text_parts = []
-        for slide_num, slide in enumerate(prs.slides, start=1):
-            slide_lines = []
-            for shape in slide.shapes:
-                if shape.has_text_frame:
-                    for paragraph in shape.text_frame.paragraphs:
-                        p_text = paragraph.text.strip()
-                        if p_text:
-                            slide_lines.append(p_text)
-                elif shape.has_table:
-                    for row in shape.table.rows:
-                        row_cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
-                        if row_cells:
-                            slide_lines.append(" | ".join(row_cells))
-            if slide_lines:
-                text_parts.append(f"--- Slide {slide_num} ---\n" + "\n".join(slide_lines))
-        return "\n\n".join(text_parts)
-    except Exception as e:
-        print(f"[!] Error reading PowerPoint file {filepath}: {e}")
-        return ""
+    return document_cleaner.clean_pptx(filepath)
 
 def extract_text_from_file(filepath):
-    ext = os.path.splitext(filepath)[1].lower()
-    try:
-        if ext == ".txt":
-            with open(filepath, "r", encoding="utf-8") as f:
-                return f.read()
-        elif ext == ".pdf":
-            text = ""
-            doc = fitz.open(filepath)
-            for page in doc:
-                text += page.get_text() + "\n"
-            return text
-        elif ext == ".docx":
-            doc = docx.Document(filepath)
-            return "\n".join([para.text for para in doc.paragraphs])
-        elif ext in (".xlsx", ".xlsm"):
-            return extract_text_from_excel(filepath)
-        elif ext in (".pptx", ".ppt"):
-            return extract_text_from_pptx(filepath)
-        elif ext == ".html":
-            try:
-                from bs4 import BeautifulSoup
-                with open(filepath, "r", encoding="utf-8") as f:
-                    soup = BeautifulSoup(f.read(), "html.parser")
-                    return soup.get_text(separator="\n", strip=True)
-            except ImportError:
-                print("[!] BeautifulSoup4 is required for HTML parsing. Run `pip install beautifulsoup4`")
-                return ""
-    except Exception as e:
-        print(f"[!] Error reading {filepath}: {e}")
-    return ""
+    return document_cleaner.clean(filepath)
 
 def extract_metadata_and_text(filepath):
     import os
@@ -288,72 +393,67 @@ def extract_metadata_and_text(filepath):
         "description": ""
     }
     
-    text = ""
+    # Extract clean text using DocumentCleaner
+    text = document_cleaner.clean(filepath)
+    
     try:
-        if ext == ".txt":
-            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                text = f.read()
-        elif ext == ".pdf":
-            doc = fitz.open(filepath)
-            for page in doc:
-                text += page.get_text() + "\n"
-            
-            # Extract PDF metadata
-            pdf_meta = doc.metadata
-            if pdf_meta:
-                meta["author"] = pdf_meta.get("author") or ""
-                meta["creator"] = pdf_meta.get("creator") or ""
-                meta["title"] = pdf_meta.get("title") or ""
-                meta["subject"] = pdf_meta.get("subject") or ""
-                meta["keywords"] = pdf_meta.get("keywords") or ""
-                
-                # Format internal PDF creation dates if available (typically D:YYYYMMDDHHMMSS)
-                c_date = pdf_meta.get("creationDate")
-                if c_date and c_date.startswith("D:"):
-                    try:
-                        date_str = c_date[2:16]
-                        dt = datetime.strptime(date_str, "%Y%m%d%H%M%S")
-                        meta["created_time"] = dt.strftime('%Y-%m-%d %H:%M:%S')
-                    except Exception:
-                        pass
-                m_date = pdf_meta.get("modDate")
-                if m_date and m_date.startswith("D:"):
-                    try:
-                        date_str = m_date[2:16]
-                        dt = datetime.strptime(date_str, "%Y%m%d%H%M%S")
-                        meta["modified_time"] = dt.strftime('%Y-%m-%d %H:%M:%S')
-                    except Exception:
-                        pass
-            doc.close()
+        if ext == ".pdf":
+            try:
+                import fitz
+                doc = fitz.open(filepath)
+                pdf_meta = doc.metadata
+                if pdf_meta:
+                    meta["author"] = pdf_meta.get("author") or ""
+                    meta["creator"] = pdf_meta.get("creator") or ""
+                    meta["title"] = pdf_meta.get("title") or ""
+                    meta["subject"] = pdf_meta.get("subject") or ""
+                    meta["keywords"] = pdf_meta.get("keywords") or ""
+                    
+                    c_date = pdf_meta.get("creationDate")
+                    if c_date and c_date.startswith("D:"):
+                        try:
+                            date_str = c_date[2:16]
+                            dt = datetime.strptime(date_str, "%Y%m%d%H%M%S")
+                            meta["created_time"] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                        except Exception:
+                            pass
+                    m_date = pdf_meta.get("modDate")
+                    if m_date and m_date.startswith("D:"):
+                        try:
+                            date_str = m_date[2:16]
+                            dt = datetime.strptime(date_str, "%Y%m%d%H%M%S")
+                            meta["modified_time"] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                        except Exception:
+                            pass
+                doc.close()
+            except Exception:
+                pass
             
         elif ext == ".docx":
-            doc = docx.Document(filepath)
-            text = "\n".join([para.text for para in doc.paragraphs])
-            
-            # Extract DOCX core properties
-            props = doc.core_properties
-            if props:
-                meta["author"] = props.author or ""
-                meta["creator"] = props.last_modified_by or ""
-                meta["title"] = props.title or ""
-                meta["subject"] = props.subject or ""
-                meta["keywords"] = props.keywords or ""
-                
-                if props.created:
-                    try:
-                        meta["created_time"] = props.created.strftime('%Y-%m-%d %H:%M:%S')
-                    except Exception:
-                        pass
-                if props.modified:
-                    try:
-                        meta["modified_time"] = props.modified.strftime('%Y-%m-%d %H:%M:%S')
-                    except Exception:
-                        pass
+            try:
+                import docx
+                doc = docx.Document(filepath)
+                props = doc.core_properties
+                if props:
+                    meta["author"] = props.author or ""
+                    meta["creator"] = props.last_modified_by or ""
+                    meta["title"] = props.title or ""
+                    meta["subject"] = props.subject or ""
+                    meta["keywords"] = props.keywords or ""
+                    if props.created:
+                        try:
+                            meta["created_time"] = props.created.strftime('%Y-%m-%d %H:%M:%S')
+                        except Exception:
+                            pass
+                    if props.modified:
+                        try:
+                            meta["modified_time"] = props.modified.strftime('%Y-%m-%d %H:%M:%S')
+                        except Exception:
+                            pass
+            except Exception:
+                pass
                         
         elif ext in (".xlsx", ".xlsm"):
-            text = extract_text_from_excel(filepath)
-            
-            # Extract Excel properties
             try:
                 import openpyxl
                 wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
@@ -365,17 +465,15 @@ def extract_metadata_and_text(filepath):
                     meta["subject"] = props.subject or ""
                     meta["keywords"] = props.keywords or ""
                     meta["description"] = props.description or ""
-                    
                     if props.created:
                         meta["created_time"] = props.created.strftime('%Y-%m-%d %H:%M:%S')
                     if props.modified:
                         meta["modified_time"] = props.modified.strftime('%Y-%m-%d %H:%M:%S')
                 wb.close()
-            except Exception as e:
-                print(f"[!] Error reading Excel metadata for {filepath}: {e}")
+            except Exception:
+                pass
                 
         elif ext in (".pptx", ".ppt"):
-            text = extract_text_from_pptx(filepath)
             try:
                 from pptx import Presentation
                 prs = Presentation(filepath)
@@ -390,38 +488,32 @@ def extract_metadata_and_text(filepath):
                         meta["created_time"] = props.created.strftime('%Y-%m-%d %H:%M:%S')
                     if props.modified:
                         meta["modified_time"] = props.modified.strftime('%Y-%m-%d %H:%M:%S')
-            except Exception as e:
-                print(f"[!] Error reading PowerPoint metadata for {filepath}: {e}")
+            except Exception:
+                pass
+
         elif ext in (".html", ".htm"):
             try:
                 from bs4 import BeautifulSoup
                 with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                    html_content = f.read()
-                    soup = BeautifulSoup(html_content, "html.parser")
-                    text = soup.get_text(separator="\n", strip=True)
-                    
-                    # Extract title
+                    soup = BeautifulSoup(f.read(), "html.parser")
                     if soup.title and soup.title.string:
                         meta["title"] = soup.title.string.strip()
-                        
-                    # Extract meta tags
                     meta_author = soup.find("meta", attrs={"name": "author"})
                     if meta_author:
                         meta["author"] = meta_author.get("content", "").strip()
-                        
                     meta_desc = soup.find("meta", attrs={"name": "description"})
                     if meta_desc:
                         meta["description"] = meta_desc.get("content", "").strip()
-                        
                     meta_keywords = soup.find("meta", attrs={"name": "keywords"})
                     if meta_keywords:
                         meta["keywords"] = meta_keywords.get("content", "").strip()
-            except ImportError:
-                print("[!] BeautifulSoup4 is required for HTML parsing. Run `pip install beautifulsoup4`")
+            except Exception:
+                pass
     except Exception as e:
-        print(f"[!] Error reading {filepath}: {e}")
+        print(f"[!] Error reading metadata for {filepath}: {e}")
         
     return text, meta
+
 
 def format_metadata_header(meta):
     header = "[Document Metadata]\n"
