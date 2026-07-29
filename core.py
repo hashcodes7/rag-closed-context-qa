@@ -1,4 +1,5 @@
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import time
 import math
 from datetime import datetime
@@ -399,6 +400,8 @@ def reciprocal_rank_fusion(results_list, k=60):
     for results in results_list:
         for rank, idx in enumerate(results):
             fused_scores[idx] = fused_scores.get(idx, 0) + 1 / (k + rank)
+    reranked = sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
+    return [idx for idx, score in reranked]
 def is_small_talk(query):
     """Detect if a user query is a simple greeting, salutation, or casual small talk."""
     import re
@@ -941,7 +944,8 @@ class RAGEngine:
         # 3. Hybrid Fusion (RRF)
         start = time.time()
         fused_ids = reciprocal_rank_fusion([semantic_ids, keyword_ids]) if use_hybrid else semantic_ids
-        candidates = [self.chunks[idx].copy() for idx in fused_ids[:20]] # Keep more for reranking
+        fused_ids = fused_ids if fused_ids is not None else []
+        candidates = [self.chunks[idx].copy() for idx in fused_ids[:20] if 0 <= idx < len(self.chunks)] # Keep more for reranking
         metrics["fusion_time"] = time.time() - start
         
         # 4. Reranking (Cross-Encoder)
