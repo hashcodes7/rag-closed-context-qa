@@ -28,5 +28,4 @@ rag_history.db
 __pycache__/*
 rag_history.db
 download_pdfs.py
-.obsidian/workspace.json
-.obsidian/workspace.json
+.obsidian/*
