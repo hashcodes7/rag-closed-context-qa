@@ -911,7 +911,7 @@ if st.session_state.get("current_page") == "manage_kb":
     
     # 📊 Telemetry Cards
     kb_folder = "knowledge_source"
-    supported_exts = {".txt", ".pdf", ".docx", ".html", ".htm", ".xlsx", ".xlsm"}
+    supported_exts = {".txt", ".pdf", ".docx", ".html", ".htm", ".xlsx", ".xlsm", ".pptx", ".ppt"}
     
     file_count = 0
     if os.path.exists(kb_folder):
@@ -948,7 +948,7 @@ if st.session_state.get("current_page") == "manage_kb":
             
         target_dir = os.path.join(kb_folder, target_subfolder)
         
-        uploaded_files = st.file_uploader(f"Upload Corporate Knowledge Files to {upload_app}", type=["txt", "pdf", "docx", "html", "xlsx", "xlsm"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader(f"Upload Corporate Knowledge Files to {upload_app}", type=["txt", "pdf", "docx", "html", "xlsx", "xlsm", "pptx", "ppt"], accept_multiple_files=True)
         if uploaded_files:
             os.makedirs(target_dir, exist_ok=True)
             for uploaded_file in uploaded_files:
@@ -1029,7 +1029,7 @@ if st.session_state.get("current_page") == "manage_kb":
                         status_char = "○"
                         status_title = "Supported (not indexed)"
                         
-                    icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘" if ext == ".docx" else "🌐" if ext in {".html", ".htm"} else "📊" if ext in {".xlsx", ".xlsm"} else "📁"
+                    icon = "📄" if ext == ".txt" else "📕" if ext == ".pdf" else "📘" if ext == ".docx" else "🌐" if ext in {".html", ".htm"} else "📊" if ext in {".xlsx", ".xlsm"} else "📙" if ext in {".pptx", ".ppt"} else "📁"
                     
                     col_file_info, col_file_del = st.columns([0.85, 0.15])
                     with col_file_info:

@@ -206,6 +206,36 @@ def extract_text_from_excel(filepath):
         if wb is not None:
             wb.close()
 
+def extract_text_from_pptx(filepath):
+    try:
+        from pptx import Presentation
+    except ImportError:
+        print("[!] python-pptx is required for PowerPoint parsing. Run `pip install python-pptx`")
+        return ""
+    
+    try:
+        prs = Presentation(filepath)
+        text_parts = []
+        for slide_num, slide in enumerate(prs.slides, start=1):
+            slide_lines = []
+            for shape in slide.shapes:
+                if shape.has_text_frame:
+                    for paragraph in shape.text_frame.paragraphs:
+                        p_text = paragraph.text.strip()
+                        if p_text:
+                            slide_lines.append(p_text)
+                elif shape.has_table:
+                    for row in shape.table.rows:
+                        row_cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                        if row_cells:
+                            slide_lines.append(" | ".join(row_cells))
+            if slide_lines:
+                text_parts.append(f"--- Slide {slide_num} ---\n" + "\n".join(slide_lines))
+        return "\n\n".join(text_parts)
+    except Exception as e:
+        print(f"[!] Error reading PowerPoint file {filepath}: {e}")
+        return ""
+
 def extract_text_from_file(filepath):
     ext = os.path.splitext(filepath)[1].lower()
     try:
@@ -223,6 +253,8 @@ def extract_text_from_file(filepath):
             return "\n".join([para.text for para in doc.paragraphs])
         elif ext in (".xlsx", ".xlsm"):
             return extract_text_from_excel(filepath)
+        elif ext in (".pptx", ".ppt"):
+            return extract_text_from_pptx(filepath)
         elif ext == ".html":
             try:
                 from bs4 import BeautifulSoup
@@ -342,6 +374,24 @@ def extract_metadata_and_text(filepath):
             except Exception as e:
                 print(f"[!] Error reading Excel metadata for {filepath}: {e}")
                 
+        elif ext in (".pptx", ".ppt"):
+            text = extract_text_from_pptx(filepath)
+            try:
+                from pptx import Presentation
+                prs = Presentation(filepath)
+                props = prs.core_properties
+                if props:
+                    meta["author"] = props.author or ""
+                    meta["creator"] = props.last_modified_by or ""
+                    meta["title"] = props.title or ""
+                    meta["subject"] = props.subject or ""
+                    meta["keywords"] = props.keywords or ""
+                    if props.created:
+                        meta["created_time"] = props.created.strftime('%Y-%m-%d %H:%M:%S')
+                    if props.modified:
+                        meta["modified_time"] = props.modified.strftime('%Y-%m-%d %H:%M:%S')
+            except Exception as e:
+                print(f"[!] Error reading PowerPoint metadata for {filepath}: {e}")
         elif ext in (".html", ".htm"):
             try:
                 from bs4 import BeautifulSoup
@@ -520,7 +570,7 @@ class RAGEngine:
     def process_knowledge_base(self, folder="knowledge_source", cache_file="vector_cache.pt", index_file="faiss_index.bin", force_reindex=False, chunking_mode="semantic", incremental=True, progress_callback=None):
         import json
         registry_file = "file_registry.json"
-        valid_extensions = (".txt", ".pdf", ".docx", ".html", ".htm", ".xlsx", ".xlsm")
+        valid_extensions = (".txt", ".pdf", ".docx", ".html", ".htm", ".xlsx", ".xlsm", ".pptx", ".ppt")
 
         def notify_progress(pct, text):
             if progress_callback:
