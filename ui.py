@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import time
 import os
 from core import RAGEngine, extract_text_from_file, is_small_talk
@@ -635,7 +636,7 @@ if "chunking_mode" not in st.session_state:
 
 
 
-# --- AUTO LOGIN VIA BROWSER QUERY PARAMS ---
+# --- AUTO LOGIN VIA BROWSER QUERY PARAMS & LOCALSTORAGE ---
 if not st.session_state["logged_in"]:
     q_uid = None
     q_email = None
@@ -661,6 +662,32 @@ if not st.session_state["logged_in"]:
             st.session_state["user_email"] = user["email"]
             st.session_state["user_role"] = user["role"]
             st.session_state["theme_mode"] = "dark"
+            # Ensure localStorage has the active user session saved
+            components.html(f"""
+            <script>
+            try {{
+                window.parent.localStorage.setItem("cogniq_user_auth", JSON.stringify({{uid: "{user['id']}", email: "{user['email']}"}}));
+            }} catch(e) {{}}
+            </script>
+            """, height=0)
+    else:
+        # Check browser localStorage to automatically restore session across tab closes
+        components.html("""
+        <script>
+        try {
+            const stored = window.parent.localStorage.getItem("cogniq_user_auth");
+            if (stored) {
+                const data = JSON.parse(stored);
+                const urlParams = new URLSearchParams(window.parent.location.search);
+                if ((!urlParams.has("uid") || !urlParams.has("email")) && data.uid && data.email) {
+                    urlParams.set("uid", data.uid);
+                    urlParams.set("email", data.email);
+                    window.parent.location.search = urlParams.toString();
+                }
+            }
+        } catch(e) {}
+        </script>
+        """, height=0)
 
 
 # --- LOGIN / SIGNUP SCREENS ---
@@ -694,7 +721,7 @@ if not st.session_state["logged_in"]:
                             st.session_state["theme_mode"] = "dark"
 
                             
-                            # Save to query params for browser persistence
+                            # Save to query params and browser localStorage for persistent login across tab closes
                             try:
                                 st.query_params["uid"] = str(user["id"])
                                 st.query_params["email"] = user["email"]
@@ -703,6 +730,13 @@ if not st.session_state["logged_in"]:
                                     st.experimental_set_query_params(uid=str(user["id"]), email=user["email"])
                                 except Exception:
                                     pass
+                            components.html(f"""
+                            <script>
+                            try {{
+                                window.parent.localStorage.setItem("cogniq_user_auth", JSON.stringify({{uid: "{user['id']}", email: "{user['email']}"}}));
+                            }} catch(e) {{}}
+                            </script>
+                            """, height=0)
                             st.rerun()
                         else:
                             st.error("Invalid email ID or password.")
@@ -827,6 +861,13 @@ with st.sidebar:
                 st.experimental_set_query_params()
             except Exception:
                 pass
+        components.html("""
+        <script>
+        try {
+            window.parent.localStorage.removeItem("cogniq_user_auth");
+        } catch(e) {}
+        </script>
+        """, height=0)
         st.session_state["logged_in"] = False
         st.session_state["uid"] = None
         st.session_state["username"] = None
