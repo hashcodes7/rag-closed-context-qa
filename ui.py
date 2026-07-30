@@ -1335,8 +1335,9 @@ is_offline = bool(st.session_state.get("engine_error") or not st.session_state.g
 chat_placeholder = "Ask about a ticket, error, or how-to..." if not is_offline else "RAG Engine is currently offline..."
 
 if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
-    st.session_state["messages"].append({"role": "user", "content": prompt})
-    db.save_message(username, "user", prompt)
+    current_app_scope = st.session_state.get("selected_app", "All Applications")
+    st.session_state["messages"].append({"role": "user", "content": prompt, "app_scope": current_app_scope})
+    db.save_message(username, "user", prompt, app_scope=current_app_scope)
     
     st.markdown(f'<div class="user-msg-container"><div class="user-msg-bubble">{prompt}</div></div>', unsafe_allow_html=True)
 
@@ -1358,10 +1359,12 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
             all_messages = st.session_state["messages"][:-1]
             for idx, m in enumerate(all_messages):
                 if m["role"] == "user":
-                    bot_content = ""
-                    if idx + 1 < len(all_messages) and all_messages[idx + 1]["role"] == "assistant":
-                        bot_content = all_messages[idx + 1]["content"]
-                    chat_history.append({"user": m["content"], "bot": bot_content})
+                    m_scope = m.get("app_scope", "All Applications")
+                    if current_app_scope == "All Applications" or m_scope == current_app_scope or m_scope == "All Applications":
+                        bot_content = ""
+                        if idx + 1 < len(all_messages) and all_messages[idx + 1]["role"] == "assistant":
+                            bot_content = all_messages[idx + 1]["content"]
+                        chat_history.append({"user": m["content"], "bot": bot_content})
 
             streamer = engine.generate_stream(
                 prompt,
@@ -1441,10 +1444,12 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
                 all_messages = st.session_state["messages"][:-1]
                 for idx, m in enumerate(all_messages):
                     if m["role"] == "user":
-                        bot_content = ""
-                        if idx + 1 < len(all_messages) and all_messages[idx + 1]["role"] == "assistant":
-                            bot_content = all_messages[idx + 1]["content"]
-                        chat_history.append({"user": m["content"], "bot": bot_content})
+                        m_scope = m.get("app_scope", "All Applications")
+                        if current_app_scope == "All Applications" or m_scope == current_app_scope or m_scope == "All Applications":
+                            bot_content = ""
+                            if idx + 1 < len(all_messages) and all_messages[idx + 1]["role"] == "assistant":
+                                bot_content = all_messages[idx + 1]["content"]
+                            chat_history.append({"user": m["content"], "bot": bot_content})
 
                 streamer = engine.generate_stream(
                     prompt,
@@ -1500,8 +1505,9 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
         "role": "assistant", 
         "content": response, 
         "sources": sources_meta,
-        "metrics": metrics
+        "metrics": metrics,
+        "app_scope": current_app_scope
     })
-    db.save_message(username, "assistant", response, sources_meta, metrics)
+    db.save_message(username, "assistant", response, sources_meta, metrics, app_scope=current_app_scope)
 
 # Centered Tagline footer under input (now rendered inside st.bottom)

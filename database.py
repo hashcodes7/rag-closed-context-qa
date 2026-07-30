@@ -50,6 +50,7 @@ def init_db():
             content TEXT,
             sources TEXT,
             metrics TEXT,
+            app_scope TEXT DEFAULT 'All Applications',
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -70,6 +71,13 @@ def init_db():
     # Gracefully add theme_preference column to existing databases if it's missing
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN theme_preference TEXT NOT NULL DEFAULT 'dark'")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    # Gracefully add app_scope column to existing databases if it's missing
+    try:
+        cursor.execute("ALTER TABLE messages ADD COLUMN app_scope TEXT DEFAULT 'All Applications'")
         conn.commit()
     except sqlite3.OperationalError:
         pass
@@ -152,18 +160,19 @@ def get_user_by_credentials(user_id, email):
 # 💬 Chat Message History Methods
 # =====================================================
 
-def save_message(session_id, role, content, sources=None, metrics=None):
+def save_message(session_id, role, content, sources=None, metrics=None, app_scope=None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO messages (session_id, role, content, sources, metrics)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO messages (session_id, role, content, sources, metrics, app_scope)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, (
         session_id, 
         role, 
         content, 
         json.dumps(sources) if sources else None, 
-        json.dumps(metrics) if metrics else None
+        json.dumps(metrics) if metrics else None,
+        app_scope or "All Applications"
     ))
     conn.commit()
     conn.close()
@@ -172,7 +181,7 @@ def load_messages(session_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT role, content, sources, metrics FROM messages 
+        SELECT role, content, sources, metrics, app_scope FROM messages 
         WHERE session_id = ? 
         ORDER BY timestamp ASC
     """, (session_id,))
@@ -185,7 +194,8 @@ def load_messages(session_id):
             "role": row[0],
             "content": row[1],
             "sources": json.loads(row[2]) if row[2] else [],
-            "metrics": json.loads(row[3]) if row[3] else {}
+            "metrics": json.loads(row[3]) if row[3] else {},
+            "app_scope": row[4] if len(row) > 4 and row[4] else "All Applications"
         })
     return history
 

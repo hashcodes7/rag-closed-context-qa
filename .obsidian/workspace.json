@@ -185,6 +185,8 @@
   },
   "active": "0fca785a6c4c14f6",
   "lastOpenFiles": [
+    "__pycache__/core.cpython-313.pyc.2768064888960",
+    "__pycache__/ui.cpython-313.pyc.2768064888960",
     "__pycache__/ui_mock.cpython-313.pyc",
     "ui_mock.py",
     "roadmap_document/architecture diagrams and explanation/Query and Generation Pipeline.md",
