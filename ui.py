@@ -793,7 +793,7 @@ username = st.session_state["username"]
 # --- CACHED ENGINE INITIALIZATION ---
 @st.cache_resource
 def get_engine(model_name):
-    embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+    embed_model_name = "BAAI/bge-large-en-v1.5"
     cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     return RAGEngine(model_name, embed_model_name, cross_encoder_model_name)
 
@@ -1443,6 +1443,9 @@ if prompt := st.chat_input(chat_placeholder, disabled=is_offline):
                 use_parent=use_parent,
                 allowed_namespaces=allowed_namespaces
             )
+            
+            detected_intent = metrics.get("query_intent", "HYBRID")
+            st.write(f"🎯 Detected Query Intent: **{detected_intent}** *(Dynamic Strategy Active)*")
             
             if not top_chunks:
                 if allowed_namespaces:

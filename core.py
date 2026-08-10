@@ -22,10 +22,84 @@ except ImportError:
 # 🧠 RAG ENGINE CORE (v19 Hybrid Logic)
 # =====================================================
 
+# =====================================================
+# 🔤 ENHANCED TOKENIZER & STOPWORD DICTIONARY
+# =====================================================
+
+ENGLISH_STOPWORDS = {
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't",
+    "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by",
+    "can", "cannot", "could", "couldn't", "did", "didn't", "do", "does", "doesn't", "doing", "don't",
+    "down", "during", "each", "few", "for", "from", "further", "had", "hadn't", "has", "hasn't", "have",
+    "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here", "here's", "hers", "herself", "him",
+    "himself", "his", "how", "how's", "i", "i'd", "i'll", "i'm", "i've", "if", "in", "into", "is", "isn't",
+    "it", "it's", "its", "itself", "let's", "me", "more", "most", "mustn't", "my", "myself", "no", "nor",
+    "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out",
+    "over", "own", "same", "shan't", "she", "she'd", "she'll", "she's", "should", "shouldn't", "so", "some",
+    "such", "than", "that", "that's", "the", "their", "theirs", "them", "themselves", "then", "there",
+    "there's", "these", "they", "they'd", "they'll", "they're", "they've", "this", "those", "through",
+    "to", "too", "under", "until", "up", "very", "was", "wasn't", "we", "we'd", "we'll", "we're", "we've",
+    "were", "weren't", "what", "what's", "whatever", "when", "when's", "where", "where's", "which",
+    "while", "who", "who's", "whom", "why", "why's", "with", "won't", "would", "wouldn't", "you", "you'd",
+    "you'll", "you're", "you've", "your", "yours", "yourself", "yourselves"
+}
+
+def normalize_token(token: str) -> str:
+    """Light suffix normalization / stemming for common English inflections."""
+    t = token.lower()
+    if len(t) > 5 and t.endswith("ing"):
+        return t[:-3]
+    if len(t) > 4 and t.endswith("ed"):
+        return t[:-2]
+    if len(t) > 3 and t.endswith("s") and not t.endswith("ss"):
+        return t[:-1]
+    return t
+
+def tokenize(text: str, remove_stopwords: bool = True, stem: bool = True) -> list:
+    """
+    Enhanced tokenizer:
+    - Extracts alphanumeric words, snake_case, camelCase, and error code identifiers.
+    - Filters out English stopwords.
+    - Applies light suffix stemming to match morphological variants.
+    """
+    import re
+    if not text:
+        return []
+    
+    raw_tokens = re.findall(r'\b[a-zA-Z0-9_\-\.]+\b', text.lower())
+    
+    tokens = []
+    for tok in raw_tokens:
+        clean_tok = tok.strip(".-_")
+        if not clean_tok:
+            continue
+            
+        # Filter stopwords unless token contains numbers/special symbols (e.g. "err-101")
+        if remove_stopwords and clean_tok in ENGLISH_STOPWORDS and not any(c.isdigit() for c in clean_tok):
+            continue
+            
+        # Ignore single characters unless numeric
+        if len(clean_tok) < 2 and not clean_tok.isdigit():
+            continue
+            
+        final_tok = normalize_token(clean_tok) if stem else clean_tok
+        tokens.append(final_tok)
+        
+    return tokens
+
+# =====================================================
+# 📊 UPGRADED BM25+ SEARCH ENGINE
+# =====================================================
+
 class SimpleBM25:
-    def __init__(self, corpus, k1=1.5, b=0.75):
+    """
+    Enhanced BM25+ Engine with lower-bound term frequency floor (delta=1.0).
+    Prevents over-penalization of long documents in standard Okapi BM25.
+    """
+    def __init__(self, corpus, k1=1.5, b=0.75, delta=1.0):
         self.k1 = k1
         self.b = b
+        self.delta = delta
         self.corpus_size = len(corpus)
         if self.corpus_size == 0:
             self.avgdl = 0
@@ -60,11 +134,10 @@ class SimpleBM25:
             idf = self.idf[word]
             for i in range(self.corpus_size):
                 fi = self.doc_freqs[i].get(word, 0)
-                scores[i] += idf * (fi * (self.k1 + 1)) / (fi + self.k1 * (1 - self.b + self.b * self.doc_len[i] / self.avgdl))
+                if fi > 0:
+                    tf_comp = (fi * (self.k1 + 1)) / (fi + self.k1 * (1 - self.b + self.b * self.doc_len[i] / self.avgdl))
+                    scores[i] += idf * (tf_comp + self.delta)
         return scores
-
-def tokenize(text):
-    return text.lower().replace(".", " ").replace(",", " ").replace("?", " ").split()
 
 def recursive_chunk_text(text, chunk_size=1000, overlap=200):
     separators = ["\n\n", "\n", ". ", " "]
@@ -537,13 +610,58 @@ def format_metadata_header(meta):
     header += "------------------\n\n"
     return header
 
-def reciprocal_rank_fusion(results_list, k=60):
+def reciprocal_rank_fusion(results_list, k=60, weights=None):
+    """
+    Reciprocal Rank Fusion (RRF) with support for per-list k-constants or list weights.
+    results_list: list of candidate ID lists [[id1, id2...], [id3, id4...]]
+    k: int or list of ints specifying smoothing constants per result list
+    weights: list of floats specifying weight multiplier for each result list
+    """
     fused_scores = {}
-    for results in results_list:
+    if not isinstance(k, (list, tuple)):
+        k_list = [k] * len(results_list)
+    else:
+        k_list = k
+
+    if weights is None:
+        weights = [1.0] * len(results_list)
+
+    for list_idx, results in enumerate(results_list):
+        k_val = k_list[list_idx] if list_idx < len(k_list) else 60
+        w_val = weights[list_idx] if list_idx < len(weights) else 1.0
         for rank, idx in enumerate(results):
-            fused_scores[idx] = fused_scores.get(idx, 0) + 1 / (k + rank)
+            fused_scores[idx] = fused_scores.get(idx, 0) + w_val * (1.0 / (k_val + rank))
+            
     reranked = sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
     return [idx for idx, score in reranked]
+
+def detect_query_intent(query):
+    """
+    Dynamically analyzes user query structure and intent to select the optimal retrieval strategy:
+    - EXACT_MATCH: Error codes (ERR-102, 0x8004), exact IDs, quotes, code symbols, filenames.
+    - CONCEPTUAL: Procedural, explanatory, or long open-ended questions.
+    - HYBRID: Standard queries.
+    """
+    import re
+    q = query.strip()
+    if not q:
+        return "HYBRID"
+    
+    # 1. Exact Match triggers: Error codes, hex numbers, camelCase/snake_case symbols, filenames, quotes
+    has_error_code = bool(re.search(r'\b(err|error|code|id|0x|bug|ticket)[-_:]?[0-9a-fA-F]+\b', q, re.IGNORECASE))
+    has_identifier = bool(re.search(r'\b[A-Z0-9_]{3,}\b|\b[a-zA-Z0-9]+_[a-zA-Z0-9_]+\b|\.[a-z0-9]{2,4}\b', q))
+    has_quotes = '"' in q or "'" in q or '`' in q
+    
+    if has_error_code or has_identifier or has_quotes:
+        return "EXACT_MATCH"
+        
+    # 2. Conceptual triggers: Procedural question starters or long natural language questions
+    conceptual_starters = ("how to", "how do", "how can", "how i", "explain", "what is", "why does", "describe", "overview of", "guide for")
+    q_lower = q.lower()
+    if any(q_lower.startswith(cs) for cs in conceptual_starters) or len(q.split()) >= 8:
+        return "CONCEPTUAL"
+        
+    return "HYBRID"
 def is_small_talk(query):
     """Detect if a user query is a simple greeting, salutation, or casual small talk."""
     import re
@@ -703,37 +821,48 @@ class RAGEngine:
                 self.parent_chunks = data.get("parent_chunks", {})
                 self.faiss_index = faiss.read_index(index_file)
                 
-                # Dynamic upgrade: if old cache does not have embeddings_np, generate it
+                # Verify embedding dimension compatibility
+                embed_dim = self.embedder.get_sentence_embedding_dimension() if self.embedder else 1024
+                if self.faiss_index is not None and getattr(self.faiss_index, "d", None) != embed_dim:
+                    print(f"[!] Vector dimension mismatch (Cached FAISS index: {self.faiss_index.d}d, Loaded embedder: {embed_dim}d). Invalidating cache and triggering complete re-index.")
+                    do_incremental = False
+                
                 embeddings_np = data.get("embeddings_np", None)
-                if embeddings_np is None and len(self.chunks) > 0:
-                    print("[*] Upgrading old cache file: generating embeddings for existing chunks...")
-                    notify_progress(0.08, "Upgrading cache: generating embeddings...")
-                    chunk_texts = [item["text"] for item in self.chunks]
-                    embeddings_np = self.embedder.encode(chunk_texts, convert_to_numpy=True).astype("float32")
-                    faiss.normalize_L2(embeddings_np)
-                
-                # Upgrade cache: populate missing metadata field
-                updated_cache = False
-                for c in self.chunks:
-                    if "metadata" not in c:
-                        full_path = os.path.join(folder, c["source"])
-                        if os.path.exists(full_path):
-                            try:
-                                _, meta = extract_metadata_and_text(full_path)
-                                c["metadata"] = meta
-                                updated_cache = True
-                            except Exception:
+                if do_incremental and embeddings_np is not None and embeddings_np.shape[1] != embed_dim:
+                    print(f"[!] Vector dimension mismatch (Cached embeddings array: {embeddings_np.shape[1]}d, Loaded embedder: {embed_dim}d). Invalidating cache and triggering complete re-index.")
+                    do_incremental = False
+
+                if do_incremental:
+                    # Dynamic upgrade: if old cache does not have embeddings_np, generate it
+                    if embeddings_np is None and len(self.chunks) > 0:
+                        print("[*] Upgrading old cache file: generating embeddings for existing chunks...")
+                        notify_progress(0.08, "Upgrading cache: generating embeddings...")
+                        chunk_texts = [item["text"] for item in self.chunks]
+                        embeddings_np = self.embedder.encode(chunk_texts, convert_to_numpy=True).astype("float32")
+                        faiss.normalize_L2(embeddings_np)
+                    
+                    # Upgrade cache: populate missing metadata field
+                    updated_cache = False
+                    for c in self.chunks:
+                        if "metadata" not in c:
+                            full_path = os.path.join(folder, c["source"])
+                            if os.path.exists(full_path):
+                                try:
+                                    _, meta = extract_metadata_and_text(full_path)
+                                    c["metadata"] = meta
+                                    updated_cache = True
+                                except Exception:
+                                    c["metadata"] = {}
+                            else:
                                 c["metadata"] = {}
-                        else:
-                            c["metadata"] = {}
-                
-                if updated_cache or data.get("embeddings_np", None) is None:
-                    print("[*] Saving upgraded cache file...")
-                    torch.save({
-                        "chunks": self.chunks,
-                        "parent_chunks": self.parent_chunks,
-                        "embeddings_np": embeddings_np
-                    }, cache_file)
+                    
+                    if updated_cache or data.get("embeddings_np", None) is None:
+                        print("[*] Saving upgraded cache file...")
+                        torch.save({
+                            "chunks": self.chunks,
+                            "parent_chunks": self.parent_chunks,
+                            "embeddings_np": embeddings_np
+                        }, cache_file)
             except Exception as e:
                 print(f"[!] Failed to load existing index/cache ({e}). Falling back to complete re-index.")
                 do_incremental = False
@@ -1030,6 +1159,27 @@ class RAGEngine:
         metrics = {}
         start = time.time()
 
+        # Dynamic Query Intent Detection (Phase 2 Enhancement)
+        intent = detect_query_intent(question)
+        metrics["query_intent"] = intent
+
+        # Determine dynamic candidate depth & RRF parameters based on intent
+        if intent == "EXACT_MATCH":
+            semantic_depth = 10
+            keyword_depth = 35
+            rrf_weights = [0.4, 1.0]  # Prioritize BM25+ exact term matches
+            rrf_k_values = [60, 30]
+        elif intent == "CONCEPTUAL":
+            semantic_depth = 35
+            keyword_depth = 10
+            rrf_weights = [1.0, 0.4]  # Prioritize BGE dense vector matches
+            rrf_k_values = [30, 60]
+        else: # HYBRID
+            semantic_depth = 20
+            keyword_depth = 20
+            rrf_weights = [1.0, 1.0]  # Equal balanced fusion
+            rrf_k_values = [60, 60]
+
         # Application scoping (Part 2): when a specific app is selected, restrict the
         # retrieval candidate pool to chunks whose namespace belongs to that app. This
         # stops another application's documents (e.g. its "user creation" steps) from
@@ -1058,36 +1208,34 @@ class RAGEngine:
         if self.faiss_index is not None and getattr(self.faiss_index, "ntotal", 0) > 0:
             query_vec = self.embedder.encode([search_query], convert_to_numpy=True).astype("float32")
             faiss.normalize_L2(query_vec)
-            # Some FAISS index types may not expose .hnsw; guard defensively
             try:
                 self.faiss_index.hnsw.efSearch = 64
             except Exception:
                 pass
-            # When filtering by namespace, pull a wider pool so enough in-scope chunks survive.
-            search_k = min(self.faiss_index.ntotal, 100 if allowed_set else 20)
+            search_k = min(self.faiss_index.ntotal, 100 if allowed_set else (semantic_depth * 2))
             _, s_indices = self.faiss_index.search(query_vec, k=search_k)
-            semantic_ids = [int(idx) for idx in s_indices[0] if idx != -1 and _is_allowed(int(idx))][:20]
+            semantic_ids = [int(idx) for idx in s_indices[0] if idx != -1 and _is_allowed(int(idx))][:semantic_depth]
             metrics["semantic_time"] = time.time() - start
         else:
             semantic_ids = []
             metrics["semantic_time"] = 0.0
 
-        # 2. Keyword Search (BM25)
+        # 2. Keyword Search (BM25+)
         start = time.time()
         if use_hybrid:
             tokenized_query = tokenize(question)
             bm25_scores = self.bm25_index.get_scores(tokenized_query)
             ranked_ids = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)
-            keyword_ids = [i for i in ranked_ids if _is_allowed(i)][:20]
+            keyword_ids = [i for i in ranked_ids if _is_allowed(i)][:keyword_depth]
         else:
             keyword_ids = []
         metrics["keyword_time"] = time.time() - start
         
-        # 3. Hybrid Fusion (RRF)
+        # 3. Dynamic Hybrid Fusion (Weighted RRF)
         start = time.time()
-        fused_ids = reciprocal_rank_fusion([semantic_ids, keyword_ids]) if use_hybrid else semantic_ids
+        fused_ids = reciprocal_rank_fusion([semantic_ids, keyword_ids], k=rrf_k_values, weights=rrf_weights) if use_hybrid else semantic_ids
         fused_ids = fused_ids if fused_ids is not None else []
-        candidates = [self.chunks[idx].copy() for idx in fused_ids[:20] if 0 <= idx < len(self.chunks)] # Keep more for reranking
+        candidates = [self.chunks[idx].copy() for idx in fused_ids[:25] if 0 <= idx < len(self.chunks)]
         metrics["fusion_time"] = time.time() - start
         
         # 4. Reranking (Cross-Encoder)

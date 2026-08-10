@@ -6,7 +6,7 @@ from core import RAGEngine
 # =====================================================
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+embed_model_name = "BAAI/bge-large-en-v1.5"
 cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 # Configuration
