@@ -140,7 +140,7 @@ Refer to the branch-specific documentation for implementation details:
 
 ## License
 
-See LICENSE file in the repository.
+a star for me on this repo would be cool. go take this code and just use it . My work is done here
 
 ---
 
